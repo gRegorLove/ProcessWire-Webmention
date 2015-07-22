@@ -1,0 +1,505 @@
+<?php
+
+/**
+ * ProcessWire Webmentions Fieldtype
+ *
+ * A field that stores webmentions for a single Page.
+ *
+ * @author Gregor Morrill, http://gregorlove.com
+ * @see http://indiewebcamp.com/webmention
+ */
+
+$dirname = dirname(__FILE__);
+require_once($dirname . '/WebmentionItem.php');
+require_once($dirname . '/WebmentionArray.php');
+require_once($dirname . '/WebmentionList.php');
+
+class FieldtypeWebmentions extends FieldtypeMulti
+{
+
+	/**
+	 * Provide module information to ProcessWire
+	 */
+	public static function getModuleInfo()
+	{
+		return array(
+			'title'		=> __('Webmentions', __FILE__),
+			'version'	=> 100,
+			'summary'	=> __('Field that stores webmentions for a single Page', __FILE__),
+		);
+	}
+
+
+	/**
+	 *
+	 */
+	public function init()
+	{
+		parent::init();
+
+		$date = new DateTime();
+		$gmt_offset = $date->format('P');
+		$this->database->query("SET @@session.time_zone = '{$gmt_offset}'");
+	}
+
+
+	/**
+	 *
+	 */
+	public function getBlankValue(Page $page, Field $field)
+	{
+		$webmentionArray = new WebmentionArray();
+		$webmentionArray->setPage($page);
+		$webmentionArray->setField($field);
+		$webmentionArray->setTrackChanges(TRUE);
+		return $webmentionArray;
+	}
+
+
+	/**
+	 *
+	 */
+	public function sanitizeValue(Page $page, Field $field, $value)
+	{
+
+		if ( $value instanceof WebmentionArray )
+		{
+			return $value;
+		}
+
+		$webmentionArray = $pages->get($field->name);
+
+		if ( !$value )
+		{
+			return $webmentionArray;
+		}
+
+		if ( $value instanceof Webmention )
+		{
+			return $webmentionArray->add($value);
+		}
+
+		if ( !is_array($value) )
+		{
+			$value = array($value);
+		}
+
+		foreach ( $value as $webmention )
+		{
+			$webmentionArray->add($webmention);
+		}
+
+		return $webmentionArray;
+	}
+
+
+	/**
+	 *
+	 */
+	public function getInputfield(Page $page, Field $field)
+	{
+		$inputfield = $this->modules->get('InputfieldWebmentions');
+
+		if ( !$inputfield )
+		{
+			return NULL;
+		}
+
+		$inputfield->class = $this->className();
+
+		return $inputfield;
+	} # end method getInputfield()
+
+
+	/**
+	 * Update a query to match the text with a fulltext index
+	 */
+	public function getMatchQuery($query, $table, $subfield, $operator, $value)
+	{
+
+		if ( $subfield == 'text' )
+		{
+			$subfield = 'data';
+		}
+
+		if ( empty($subfield) || $subfield === 'data' )
+		{
+			$ft = new DatabaseQuerySelectFulltext($query);
+			$ft->match($table, $subfield, $operator, $value);
+			return $query;
+		}
+
+		return parent::getMatchQuery($query, $table, $subfield, $operator, $value);
+	}
+
+
+	/**
+	 * Given a raw value (value as stored in DB), return the value as it would appear in a Page object
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string|int|array $value
+	 * @return string|int|array|object $value
+	 *
+	 */
+	public function ___wakeupValue(Page $page, Field $field, $value)
+	{
+
+		if ( $value instanceof WebmentionArray )
+		{
+			return $value;
+		}
+
+		$webmentionArray = $this->getBlankValue($page, $field);
+		$editable = $page->editable();
+
+		if ( empty($value) || !is_array($value) )
+		{
+			return $webmentionArray;
+		}
+
+		foreach ( $value as $sort => $item )
+		{
+
+			if ( !is_array($item) )
+			{
+				continue;
+			}
+
+/*			# don't load non-approved webmentions if the user can't edit them
+			if ( !$editable && $item['status'] < WebmentionItem::statusApproved )
+			{
+				continue;
+			}*/
+
+			$webmention = new WebmentionItem();
+
+			foreach ( $item as $key => $val )
+			{
+
+				if ( $key == 'data' )
+				{
+					$key = 'text';
+				}
+
+				$webmention->set($key, $val);
+			}
+
+			$webmention->resetTrackChanges(TRUE);
+			$webmentionArray->add($webmention);
+		}
+
+		if ( $field->sortNewest )
+		{
+			$webmentionArray->sort('-updated');
+		}
+
+		$webmentionArray->resetTrackChanges(TRUE);
+
+		return $webmentionArray;
+	}
+
+
+	/**
+	 * Given an 'awake' value, as set by wakeupValue, convert the value back to a basic type for storage in DB.
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string|int|array|object $value
+	 * @return string|int
+	 */
+	public function ___sleepValue(Page $page, Field $field, $value)
+	{
+		$sleepValue = array();
+
+		if ( !$value instanceof WebmentionArray )
+		{
+			return $sleepValue;
+		}
+
+		foreach ( $value as $webmention )
+		{
+			$a = array(
+				'data'				=> $webmention->microformats,
+				'id'				=> $webmention->id,
+				'md5key'			=> $webmention->md5key,
+				'source_url'		=> $webmention->source_url,
+				'target_url'		=> $webmention->target_url,
+				'vouch_url'			=> $webmention->vouch_url,
+				'type'				=> $webmention->type,
+				'is_like'			=> $webmention->is_like,
+				'is_repost'			=> $webmention->is_repost,
+				'is_rsvp'			=> $webmention->is_rsvp,
+				'content'			=> $webmention->content,
+				'url'				=> $webmention->url,
+				'name'				=> $webmention->name,
+				'author_name'		=> $webmention->author_name,
+				'author_photo'		=> $webmention->author_photo,
+				'author_logo'		=> $webmention->author_logo,
+				'author_url'		=> $webmention->author_url,
+				'published'			=> empty($webmention->published) ? $webmention->created : $webmention->published,
+				'published_offset'	=> $webmention->published_offset,
+				'updated'			=> empty($webmention->updated) ? $webmention->created : $webmention->updated,
+				'updated_offset'	=> $webmention->updated_offset,
+				'status'			=> $webmention->status,
+				'visibility'		=> $webmention->visibility,
+				'created'			=> $webmention->created,
+			);
+
+			$sleepValue[] = $a;
+		}
+
+		return $sleepValue;
+	}
+
+
+	/**
+	 * Placeholder for potential granular webmention approval controls
+	 * @param Page $page
+	 * @param Field $field
+	 * @param WebmentionItem $webmention
+	 * @access protected
+	 */
+	protected function checkNewWebmention(Page $page, Field $field, WebmentionItem $webmention)
+	{
+		return;
+	}
+
+
+	/**
+	 * Placeholder for potential email notification of new webmentions
+	 * @param Page $page
+	 * @param Field $field
+	 * @param WebmentionItem $webmention
+	 * @access protected
+	 */
+	protected function ___sendNotificationEmail(Page $page, Field $field, WebmentionItem $webmention)
+	{
+		return;
+	}
+
+
+	/**
+	 * Schema for the Webmentions Fieldtype
+	 * @param Field $field
+	 * @access public
+	 * @return array
+	 */
+	public function getDatabaseSchema(Field $field)
+	{
+		$schema = parent::getDatabaseSchema($field);
+
+		$schema['data'] = 'text';
+		$schema['id'] = "int unsigned NOT NULL auto_increment";
+		$schema['md5key'] = "varchar(32) NOT NULL DEFAULT ''";
+		$schema['source_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['target_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['vouch_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['type'] = "enum('reply','mention','legacy') NOT NULL DEFAULT 'mention'";
+		$schema['is_like'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
+		$schema['is_repost'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
+		$schema['is_rsvp'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
+		$schema['content'] = 'text';
+		$schema['url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['name'] = 'text';
+		$schema['author_name'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_photo'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_logo'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_email'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['published'] = "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP";
+		$schema['published_offset'] = "tinyint(1) NOT NULL DEFAULT '0'";
+		$schema['updated'] = "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'";
+		$schema['updated_offset'] = "tinyint(1) NOT NULL DEFAULT '0'";
+		$schema['status'] = "tinyint(3) NOT NULL DEFAULT '0'";
+		$schema['visibility'] = "tinyint(3) NOT NULL DEFAULT '0'";
+		$schema['created'] = "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'";
+		$schema['deleted'] = "timestamp NULL DEFAULT NULL";
+
+		$schema['keys']['primary'] = "PRIMARY KEY (`id`)";
+		$schema['keys']['pages_id_sort'] = "KEY `pages_id_sort` (`pages_id`, `sort`)";
+		$schema['keys']['md5key'] = "UNIQUE KEY `md5key` (`md5key`)";
+		$schema['keys']['data'] = "FULLTEXT KEY `data` (`data`)";
+
+		return $schema;
+	}
+
+
+	/**
+	 * Per the Fieldtype interface, Save the given Field from the given Page to the database
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return bool
+	 */
+	public function ___savePageField(Page $page, Field $field)
+	{
+
+		if ( !$page->id || !$field->id )
+		{
+			return FALSE;
+		}
+
+		$allItems = $page->get($field->name);
+		$database = $this->wire('database');
+		$table = $database->escapeTable($field->table);
+
+		if ( !$allItems )
+		{
+			return FALSE;
+		}
+
+		if ( !$allItems->isChanged() && !$page->isChanged($field->name) )
+		{
+			return TRUE;
+		}
+
+		$itemsRemoved = $allItems->getItemsRemoved();
+
+		if ( count($itemsRemoved) )
+		{
+
+			foreach ( $itemsRemoved as $item )
+			{
+
+				if ( !$item->id )
+				{
+					continue;
+				}
+
+				$query = $database->prepare("DELETE FROM `$table` WHERE id=:item_id AND pages_id=:pages_id");
+				$query->bindValue(":item_id", $item->id, PDO::PARAM_INT);
+				$query->bindValue(":pages_id", $page->id, PDO::PARAM_INT);
+				$query->execute();
+			}
+
+		}
+
+		$maxSort = 0;
+		$items = $allItems->makeNew();
+
+		foreach ( $allItems as $item )
+		{
+
+			if ( $item->isChanged() || !$item->id )
+			{
+				$items->add($item);
+			}
+
+
+			if ( $item->sort > $maxSort )
+			{
+				$maxSort = $item->sort;
+			}
+
+		}
+
+		if ( !count($items) )
+		{
+			return TRUE;
+		}
+
+		$values = $this->sleepValue($page, $field, $items);
+		$value = reset($values);
+		$keys = is_array($value) ? array_keys($value) : array('data');
+
+		// cycle through the values, executing an update query for each
+		foreach ( $values as $value )
+		{
+			$sql = $value['id'] ? 'UPDATE ' : 'INSERT INTO ';
+			$sql .= "`{$table}` SET pages_id=" . ((int) $page->id) . ', ';
+
+			// if the value is not an associative array, then force it to be one
+			if ( !is_array($value) )
+			{
+				$value = array('data' => $value);
+			}
+
+			// cycle through the keys, which represent DB fields (i.e. data, description, etc.) and generate the update query
+			foreach ( $keys as $key )
+			{
+
+				if ( $key == 'id' )
+				{
+					continue;
+				}
+
+
+				if ( $key == 'sort' && !$value['id'] )
+				{
+					continue;
+				}
+
+				$v = $value[$key];
+				$sql .= $database->escapeCol($key) . "='" . $database->escapeStr("$v") . "', ";
+			}
+
+			if ( $value['id'] )
+			{
+				$sql = rtrim($sql, ', ') . ' WHERE id=' . (int) $value['id'];
+			}
+			else
+			{
+				$sql .= 'sort=' . ++$maxSort;
+			}
+
+			if ( FALSE === $database->exec($sql) )
+			{
+				$this->error("Error saving item $value[id] in savePageField", Notice::log);
+			}
+
+		}
+
+		return TRUE;
+	} # end method ___savePageField()
+
+
+	/**
+	 * Configuration that appears with each Webmention fieldtype
+	 *
+	 */
+	public function ___getConfigInputfields(Field $field)
+	{
+		$inputfields = parent::___getConfigInputfields($field);
+
+		$name = 'sortNewest';
+		$f = $this->fuel('modules')->get('InputfieldCheckbox');
+		$f->attr('name', $name);
+		$f->attr('value', 1);
+		$f->attr('checked', $field->$name ? 'checked' : '');
+		$f->label = $this->_('Sort newest to oldest?');
+		$f->description = $this->_('By default, webmentions will sort chronologically (oldest to newest). To reverse that behavior check this box.');
+		$f->columnWidth = 50;
+		$inputfields->append($f);
+
+		$name = 'quietSave';
+		$f = $this->fuel('modules')->get('InputfieldCheckbox');
+		$f->attr('name', $name);
+		$f->attr('value', 1);
+		$f->attr('checked', $field->$name ? 'checked' : '');
+		$f->label = $this->_('Quiet save?');
+		$f->columnWidth = 50;
+		$f->description = $this->_('When checked, the page modification time and user will not be updated when a webmention is added.');
+		$inputfields->append($f);
+
+		$name = 'schemaVersion';
+		$f = $this->fuel('modules')->get('InputfieldHidden');
+		$f->attr('name', $name);
+		$value = (int) $field->$name;
+		$f->attr('value', $value);
+		$f->label = 'Schema Version';
+		$inputfields->append($f);
+
+		return $inputfields;
+	}
+
+
+	/**
+	 * For FieldtypeMulti interface, return NULL to indicate that the field is not auto-joinable
+	 */
+	public function getLoadQueryAutojoin(Field $field, DatabaseQuerySelect $query)
+	{
+		return NULL; // make this field not auto-joinable
+	}
+
+}

@@ -1,0 +1,6 @@
+{
+    "require": {
+    	"mf2/mf2": "0.2.*",
+        "barnabywalters/mf-cleaner": "0.*"
+    }
+}

@@ -1,0 +1,334 @@
+<?php
+
+/**
+ * ProcessWire InputfieldWebmentions
+ *
+ * An Inputfield for handling administration of webmentions.
+ *
+ * @author Gregor Morrill, http://gregorlove.com
+ * @see http://indiewebcamp.com/webmention
+ */
+
+class InputfieldWebmentions extends Inputfield implements InputfieldItemList
+{
+
+	/**
+	 * Provide module information to ProcessWire
+	 * @access public
+	 */
+	public static function getModuleInfo()
+	{
+		return array(
+			'title'		=> 'Webmentions',
+			'version'	=> 100,
+			'summary'	=> 'Input field for webmentions.',
+			'requires'	=> 'FieldtypeWebmentions',
+		);
+	} # end method getModuleInfo()
+
+
+	/**
+	 * Per the Module interface, init() is called when the system is ready for API usage
+	 * @access public
+	 */
+	public function init()
+	{
+		parent::init();
+
+		$date = new DateTime();
+		$gmt_offset = $date->format('P');
+		$this->database->query("SET @@session.time_zone = '{$gmt_offset}'");
+	} # end method init()
+
+
+	/**
+	 * This method handles rendering the input area for Webmentions
+	 * @access public
+	 */
+	public function ___render()
+	{
+
+		# if: no Webmentions yet
+		if ( !count($this->value) )
+		{
+			return sprintf('<p> %s </p>', $this->_('There are currently no webmentions to display.'));
+		} # end if
+
+		$output = '';
+
+		$options_status = array(
+			WebmentionItem::statusApproved => $this->_x('Approved', 'webmention-status'),
+			WebmentionItem::statusPending => $this->_x('Pending', 'webmention-status'),
+		);
+
+		$options_visibility = array(
+			WebmentionItem::visibilityPublic => $this->_x('Public', 'webmention-visibility'),
+			WebmentionItem::visibilityPrivate => $this->_x('Private', 'webmention-visibility'),
+		);
+
+		$output .= '<ul class="Inputfields InputfieldWebmentionsList">';
+
+		# loop: each webmention
+		foreach ( $this->attr('value') as $count => $webmention )
+		{
+			$select_action = $this->generateActionSelect($this->name, $webmention->id);
+
+			$label_visibility = $options_visibility[$webmention->visibility];
+			$select_visibility = $this->generateVisibilitySelect($this->name, $webmention->id, $webmention->visibility);
+
+			# if: approved webmention
+			if ( $webmention->status == WebmentionItem::statusApproved )
+			{
+				$label_status = $options_status[WebmentionItem::statusApproved];
+
+				$published = new DateTime($webmention->published);
+				$display_published = $published->format('F j, Y g:ia');
+
+				$author_url = $webmention->author_url;
+				$author_hostname = parse_url($author_url, PHP_URL_HOST);
+				$author_name = htmlspecialchars($webmention->author_name);
+				$webmention_content = htmlspecialchars($webmention->name);
+
+				$output .= <<< END
+		<li id="WebmentionsItem{$webmention->id}" class="Inputfield WebmentionsItem{$label_status} InputfieldStateCollapsed ui-widget">
+
+			<label class="WebmentionsItemHead InputfieldHeader ui-widget-header" for="">
+				<i class="toggle-icon fa fa-angle-down" data-to="fa-angle-down fa-angle-right"></i>
+				<span class="WebmentionsItemHeadLabel"> {$label_status} ($label_visibility) </span>
+				<span class="WebmentionItemBy"> {$webmention->author_name} – {$display_published} </span>
+			</label>
+
+			<div class="InputfieldContent ui-widget-content">
+
+				<div class="WebmentionSummary">
+
+					<div style="display: inline-block; vertical-align: top;">
+						<img src="{$webmention->author_photo}" alt="" style="max-width: 50px; vertical-align: top;" />
+					</div>
+
+					<div style="display: inline-block;">
+						<p> <strong><a href="{$author_url}">{$author_hostname}</a></strong> <a href="{$author_url}">{$author_name}</a> </p>
+						<p> {$webmention_content} </p>
+						<p> <a href="{$webmention->url}">{$display_published}</a> </p>
+					</div>
+
+				</div>
+
+				<div class="WebmentionVisibility">
+					<p> <label>Visibility: {$select_visibility}</label> </p>
+				</div>
+
+				<div class="WebmentionStatus">
+					<p> Action: {$select_action} </p>
+				</div>
+
+			</div>
+
+		</li>
+END;
+			}
+			# else: webmention pending
+			else
+			{
+				$label_status = $options_status[WebmentionItem::statusPending];
+				$hostname = parse_url($webmention->source_url, PHP_URL_HOST);
+
+				$input_source_url = sprintf('<input type="hidden" name="%s_source_url_%d" value="%s" />',
+					$this->name,
+					$webmention->id,
+					$webmention->source_url
+				);
+
+				$input_target_url = sprintf('<input type="hidden" name="%s_target_url_%d" value="%s" />',
+					$this->name,
+					$webmention->id,
+					$webmention->target_url
+				);
+
+				$output .= <<< END
+		<li id="WebmentionsItem{$webmention->id}" class="Inputfield WebmentionsItem{$label_status} ui-widget">
+
+			<label class="WebmentionsItemHead InputfieldHeader ui-widget-header" for="">
+				<i class="toggle-icon fa fa-angle-down" data-to="fa-angle-down fa-angle-right"></i>
+				<span class="WebmentionsItemHeadLabel"> {$label_status} </span>
+				<span class="WebmentionItemBy"> Mention from {$hostname} </span>
+			</label>
+
+			<div class="InputfieldContent ui-widget-content">
+
+				<div class="WebmentionSummary">
+					<p> <a href="{$webmention->source_url}" target="_blank">{$webmention->source_url} <i class="fa fa-external-link"></i></a> </p>
+				</div>
+
+				<div class="WebmentionVisibility">
+					<p> <label>Visibility: {$select_visibility}</label> </p>
+				</div>
+
+				<div class="WebmentionStatus">
+					<p> Action: {$select_action} </p>
+				</div>
+
+			</div>
+
+		</li>
+END;
+			} # end if
+
+		} # end loop: each webmention
+
+		$output .= '</ul>';
+
+		return $output;
+	} # end method ___render()
+
+
+	/**
+	 * This method handles generating an action <select>
+	 * @param string $name
+	 * @param int $id
+	 * @param string $selected_value
+	 * @access public
+	 * @return string
+	 */
+	public function generateActionSelect($name, $id, $selected_value = '')
+	{
+		$html = '';
+
+		$options = array(
+			WebmentionItem::actionProcess => $this->_x('Process', 'webmention-action'),
+			WebmentionItem::actionDelete => $this->_x('Delete', 'webmention-action'),
+			WebmentionItem::actionNone => $this->_x('None', 'webmention-action'),
+		);
+
+		$html .= sprintf('<select name="%s_action_%d">', $name, $id);
+
+		# loop: each status option
+		foreach ( $options as $value => $label )
+		{
+			$selected_attribute = ( $selected_value == $value ) ? ' selected="selected"' : '';
+
+			$html .= sprintf('<option value="%s"%s>%s</option>',
+				$value,
+				$selected_attribute,
+				$label
+			);
+		} # end loop: each status option
+
+		$html .= '</select>';
+
+		return $html;
+	} # end method generateActionSelect()
+
+
+	/**
+	 * This method handles generating a status <select>
+	 * @param string $name
+	 * @param int $id
+	 * @param string $selected_value
+	 * @access public
+	 * @return string
+	 */
+	public function generateVisibilitySelect($name, $id, $selected_value = '')
+	{
+		$html = '';
+
+		$options = array(
+			WebmentionItem::visibilityPublic => $this->_x('Public', 'webmention-visibility'),
+			WebmentionItem::visibilityPrivate => $this->_x('Private', 'webmention-visibility'),
+		);
+
+		$html .= sprintf('<select name="%s_visibility_%d">', $name, $id);
+
+		# loop: each visibility option
+		foreach ( $options as $value => $label )
+		{
+			$selected_attribute = ( $selected_value == $value ) ? ' selected="selected"' : '';
+
+			$html .= sprintf('<option value="%s"%s>%s</option>',
+				$value,
+				$selected_attribute,
+				$label
+			);
+		} # end loop: each visibility option
+
+		$html .= '</select>';
+
+		return $html;
+	} # end method generateVisibilitySelect()
+
+
+	/**
+	 * Process the input from the given WireInputData (usually $input->get or $input->post), load and clean the value for use in this Inputfield.
+	 *
+	 * @param WireInputData $input
+	 * @return $this
+	 */
+	public function ___processInput(WireInputData $input)
+	{
+		$fields = array(
+			'action',
+			'visibility',
+		);
+
+		$webmention_module = wire('modules')->get('Webmention');
+
+		# loop:
+		foreach ( $this->value as $webmention )
+		{
+			$data = array();
+
+			# loop:
+			foreach ( $fields as $field )
+			{
+				$input_name = sprintf('%s_%s_%d', $this->name, $field, $webmention->id);
+
+				if ( isset($input[$input_name]) )
+				{
+					$data[$field] = $input[$input_name];
+				}
+
+			} # end loop
+
+			# if: status field exists
+			if ( !empty($data['action']) )
+			{
+
+				if ( $data['action'] == WebmentionItem::actionProcess )
+				{
+					$result = $webmention_module->processWebmention($webmention);
+					$this->message(sprintf($this->_('Processed webmention #%d'), $webmention->id));
+					$this->value->trackChange('update');
+				} # end if
+
+				# if: delete
+				if ( $data['action'] == WebmentionItem::actionDelete )
+				{
+					$this->value->remove($webmention);
+					$this->message(sprintf($this->_('Deleted webmention #%d'), $webmention->id));
+					$this->value->trackChange('remove');
+					continue;
+				} # end if
+
+			} # end if
+
+			unset($data['action']);
+
+			# loop:
+			foreach ( $data as $key => $value )
+			{
+
+				if ( $webmention->$key != $value )
+				{
+					$webmention->$key = $value;
+					$this->message(sprintf($this->_('Updated %s for webmention #%d'), $key, $webmention->id));
+					$this->value->trackChange('update');
+				}
+
+			} # end loop
+
+		} # end loop
+
+		return $this;
+	} # end method ___processInput()
+
+}
