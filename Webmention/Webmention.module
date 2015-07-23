@@ -154,7 +154,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			PRIMARY KEY(id)
 		) ENGINE = MYISAM;
 END;
-		$this->db->query($sql);
+		$this->database->query($sql);
 
 		$sql = <<< END
 		CREATE TABLE {$this->className}_referer_queue (
@@ -167,7 +167,7 @@ END;
 			UNIQUE KEY(url)
 		) ENGINE = MYISAM;
 END;
-		$this->db->query($sql);
+		$this->database->query($sql);
 
 		$sql = <<< END
 		CREATE TABLE {$this->className}_vouches (
@@ -181,8 +181,7 @@ END;
 			UNIQUE KEY(url)
 		) ENGINE = MYISAM;
 END;
-		$this->db->query($sql);
-
+		$this->database->query($sql);
 	} # end method ___install()
 
 
@@ -206,9 +205,9 @@ END;
 			wire('fieldgroups')->delete($fg);
 		}
 
-		$this->db->query("DROP TABLE IF EXISTS {$this->className}_send_queue");
-		$this->db->query("DROP TABLE IF EXISTS {$this->className}_referer_queue");
-		$this->db->query("DROP TABLE IF EXISTS {$this->className}_vouches");
+		$this->database->query("DROP TABLE IF EXISTS {$this->className}_send_queue");
+		$this->database->query("DROP TABLE IF EXISTS {$this->className}_referer_queue");
+		$this->database->query("DROP TABLE IF EXISTS {$this->className}_vouches");
 	} # end method ___unInstall()
 
 
@@ -656,7 +655,11 @@ END;
 
 		foreach ( $unique_urls as $url )
 		{
-			$result = $this->db->query("INSERT INTO {$this->className}_send_queue SET source = '{$this->sanitizer->url($source_url)}', target = '{$this->sanitizer->url($url)}', created = NOW(), modified = NOW()");
+			$source = $this->sanitizer->url($source_url);
+			$target = $this->sanitizer->url($url);
+
+			$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET source = ?, target = ?, created = NOW(), modified = NOW()");
+			$result = $statement->execute(array($source, $target));
 		}
 
 		return TRUE;
@@ -673,12 +676,14 @@ END;
 	public function sendWebmentions()
 	{
 		# fetch webmentions to be sent
-		$result = $this->db->query("SELECT * FROM {$this->className}_send_queue WHERE processed IS NULL ORDER BY created ASC LIMIT 5");
+		$result = $this->database->query("SELECT * FROM {$this->className}_send_queue WHERE processed IS NULL ORDER BY created ASC LIMIT 5");
 
-		if ( $result === FALSE || $result->num_rows == 0 )
+		if ( $result === FALSE || $result->rowCount() == 0 )
 		{
 			return;
 		}
+
+		$statement_processed = $this->database->prepare("UPDATE {$this->className}_send_queue SET processed = NOW() WHERE id = ?");
 
 		# array of webmention responses
 		$responses = array();
@@ -686,7 +691,7 @@ END;
 		$i = 1;
 
 		# loop: each webmention to send
-		while ( $row = $result->fetch_assoc() )
+		while ( $row = $result->fetch(PDO::FETCH_ASSOC) )
 		{
 
 			# if: URL starts with http:// or https://
@@ -707,8 +712,7 @@ END;
 					$responses[] = $this->sendWebmention($endpoint_data, $row['source'], $row['target'], $extra_parameters);
 				} # end if
 
-				$id = intval($row['id']);
-				$result2 = $this->db->query("UPDATE {$this->className}_send_queue SET processed = NOW() WHERE id = {$id}");
+				$result2 = $statement_processed->execute(array($row['id']));
 			} # end if
 
 			$i++;
@@ -1380,14 +1384,18 @@ END;
 			return;
 		}
 
-		$result = $this->db->query("SELECT * FROM {$this->className}_vouches WHERE url = '{$this->sanitizer->url($referer)}'");
+		$referer = $this->sanitizer->url($referer);
 
-		if ( $result === FALSE || $result->num_rows > 0 )
+		$statement = $this->database->prepare("SELECT * FROM {$this->className}_vouches WHERE url = ?");
+		$result = $statement->execute(array($referer));
+
+		if ( $result === FALSE || $result->rowCount() > 0 )
 		{
 			return;
 		}
 
-		$result = $this->db->query("INSERT INTO {$this->className}_referer_queue SET url = '{$this->sanitizer->url($referer)}', created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
+		$statement = $this->database->prepare("INSERT INTO {$this->className}_referer_queue SET url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
+		$result = $statement->execute(array($referer));
 
 		return;
 	} # end method recordReferer()
@@ -1400,14 +1408,14 @@ END;
 	 */
 	public function processReferer()
 	{
-		$result = $this->db->query("SELECT * FROM {$this->className}_referer_queue WHERE processed IS NULL ORDER BY created ASC LIMIT 1");
+		$result = $this->database->query("SELECT * FROM {$this->className}_referer_queue WHERE processed IS NULL ORDER BY created ASC LIMIT 1");
 
-		if ( $result === FALSE || $result->num_rows == 0 )
+		if ( $result === FALSE || $result->rowCount() == 0 )
 		{
 			return;
 		}
 
-		$row = $result->fetch_assoc();
+		$row = $result->fetch(PDO::FETCH_ASSOC);
 
 		$http = new ProcessWireShim\WireHttp();
 		$response = $http->get($row['url']);
@@ -1420,6 +1428,8 @@ END;
 		# get <a> DOMElements
 		$a_elements = $dom->getElementsByTagName('a');
 
+		$statement_vouches = $this->database->prepare("INSERT INTO {$this->className}_vouches SET domain = ?, url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
+
 		# loop: each <a> DOMElement
 		foreach ( $a_elements as $a )
 		{
@@ -1431,15 +1441,16 @@ END;
 			{
 				$domain = parse_url($row['url'], PHP_URL_HOST);
 
-				$result = $this->db->query("INSERT INTO {$this->className}_vouches SET domain = '{$domain}', url = '{$this->sanitizer->url($row['url'])}', created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
+				$url = $this->sanitizer->url($row['url']);
+				$result = $statement_vouches->execute(array($domain, $url));
 
-				$id = intval($row['id']);
-				$result = $this->db->query("UPDATE {$this->className}_referer_queue SET processed = NOW() WHERE id = {$id}");
-
-				return TRUE;
+				break;
 			} # end if
 
 		} # end loop
+
+		$statement = $this->database->prepare("UPDATE {$this->className}_referer_queue SET processed = NOW() WHERE id = ?");
+		$result = $statement->execute(array($row['id']));
 
 		return;
 	} # end method processReferer()
@@ -1486,14 +1497,14 @@ END;
 					$checked_domains[] = $potential_vouch_domain;
 
 					# check vouches
-					$result = $this->db->query("SELECT * FROM {$this->className}_vouches WHERE domain = '{$potential_vouch_domain}'");
+					$result = $this->database->query("SELECT * FROM {$this->className}_vouches WHERE domain = '{$potential_vouch_domain}'");
 
-					if ( $result === FALSE || $result->num_rows == 0 )
+					if ( $result === FALSE || $result->rowCount() == 0 )
 					{
 						continue;
 					}
 
-					$row = $result->fetch_assoc();
+					$row = $result->fetch(PDO::FETCH_ASSOC);
 					return $row['url'];
 				} # end if: link is external...
 
