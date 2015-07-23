@@ -13,7 +13,8 @@ Version 1.0.0 is a stable beta that covers webmention sending, receiving, parsin
 * Process webmentions to extract microformats
 
 ## Requirements
-This module hooks into the LazyCron module.
+* php-mf2 and php-mf2-cleaner libraries; bundled with this package and may optionally be updated using Composer.
+* This module hooks into the LazyCron module.
 
 ## Installation
 Installing the core module named "Webmention" will automatically install the Fieldtype and Inputfield modules included in this package.
@@ -29,12 +30,20 @@ When creating or editing a page that has the Webmentions field, a checkbox "Send
 This module enables receiving webmentions on any pages that have have "Webmentions" field, by adding the webmention endpoint as an HTTP Link header. If you would like to specify a custom webmention endpoint URL, you can do so in the admin area, Modules > Webmention.
 
 ## Processing Webmentions (beta)
-Currently no webmentions are automatically parsed. You will need to browse to the page in the backend, click "Edit," and scroll to the Webmentions field. There is a dropdown for "Visibility" and "Action" beside each webmention. Select "Process" to parse the webmention for microformats.
+Currently no webmentions are automatically processed. You will need to browse to the page in the backend, click "Edit," and scroll to the Webmentions field. There is a dropdown for "Visibility" and "Action" beside each webmention. Select "Process" to parse the webmention for microformats.
 
 A better interface for viewing/processing all received webmentions in one place is under development.
 
+## Displaying Webmentions (beta)
+Within your template file, you can use `$page->Webmentions->render()` [where "Webmentions" is the name you used creating the field] to display a list of approved webmentions. As with the Comments Fieldtype, you can also [generate your own output](https://processwire.com/api/fieldtypes/comments/).
+
+The display functionality is also under development.
+
 ## Logs
 This module writes two logs: webmentions-sent and webmentions-received.
+
+## Vouch
+The [Vouch](http://indiewebcamp.com/Vouch) anti-spam extension is still under development.
 
 ## IndieWeb
 The IndieWeb movement is about owning your data. It encourages you to create and publish on your own site and optionally syndicate to third-party sites. Webmention is one of the core building blocks of this movement.
