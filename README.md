@@ -2,7 +2,7 @@
 
 [ProcessWire](http://processwire.com) module to send and receive webmentions.
 
-[Webmention](http://webmention.org) is a simple way to automatically notify any URL when you link to it on your site. From the receiver's perpective, it is a way to request notification when other sites link to it.
+[Webmention](http://webmention.org) is a simple way to automatically notify any URL when you link to it on your site. From the receiver's perspective, it is a way to request notification when other sites link to it.
 
 Version 1.0.0 is a stable beta that covers webmention sending, receiving, parsing, and display. An easy admin interface for received webmentions is under development, as well as support for the Webmention Vouch extension.
 
@@ -10,10 +10,10 @@ Version 1.0.0 is a stable beta that covers webmention sending, receiving, parsin
 * Webmention endpoint discovery
 * Automatically send webmentions asynchronously
 * Automatically receive webmentions
-* Process webmentions to extract microformats
+* Process webmentions to extract [microformats](http://microformats.org)
 
 ## Requirements
-* php-mf2 and php-mf2-cleaner libraries; bundled with this package and may optionally be updated using Composer.
+* [php-mf2](https://github.com/indieweb/php-mf2) and [php-mf2-cleaner](https://github.com/barnabywalters/php-mf-cleaner) libraries; bundled with this package and may optionally be updated using Composer.
 * This module hooks into the LazyCron module.
 
 ## Installation
