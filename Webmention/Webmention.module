@@ -1389,7 +1389,7 @@ END;
 		$statement = $this->database->prepare("SELECT * FROM {$this->className}_vouches WHERE url = ?");
 		$result = $statement->execute(array($referer));
 
-		if ( $result === FALSE || $result->rowCount() > 0 )
+		if ( $result === FALSE || $statement->rowCount() > 0 )
 		{
 			return;
 		}
