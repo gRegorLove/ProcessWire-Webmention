@@ -63,6 +63,19 @@ class Webmention extends WireData implements Module, ConfigurableModule
 
 
 	/**
+	 * This method gets the module's default config data
+	 * @access public
+	 * @return array
+	 */
+	public static function getDefaultData()
+	{
+		return array(
+			'fields_to_parse' => 'body',
+		);
+	} # end method getDefaultData()
+
+
+	/**
 	 * This method handles setting up the module's configuration fields
 	 * @param array $data
 	 * @access public
@@ -76,6 +89,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$field = wire('modules')->get('InputfieldText');
 		$field->name = 'custom_endpoint';
 		$field->label = 'Custom webmention endpoint URL';
+		$field->description = 'If your webmention endpoint is at a different URL, enter it here. Otherwise, leave blank.';
 
 		if ( isset($data['custom_endpoint']) )
 		{
@@ -84,11 +98,30 @@ class Webmention extends WireData implements Module, ConfigurableModule
 
 		$inputfields->add($field);
 
+		# fields_to_parse
+		$field = wire('modules')->get('InputfieldText');
+		$field->name = 'fields_to_parse';
+		$field->label = 'Fields to parse for URLs';
+		$field->description = 'Enter a comma-separated list of field names.';
+
+		if ( isset($data['fields_to_parse']) )
+		{
+			$field->value = $data['fields_to_parse'];
+		}
+		else
+		{
+			$field->value = 'body';
+		}
+
+		$inputfields->add($field);
+
+		# is_vouch_required field (Vouch support is still under development)
 		$field = wire('modules')->get('InputfieldCheckbox');
 		$field->name = 'is_vouch_required';
 		$field->value = 0;
 		$field->checked = ( $data['is_vouch_required'] ) ? 'checked' : '';
 		$field->label = 'Require webmention with vouch';
+		$field->description = 'Vouch is currently under development. It’s not recommended to turn it on yet. :]';
 
 		$inputfields->add($field);
 
@@ -134,14 +167,10 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			$p->parent = 1;
 			$p->title = 'Webmention Endpoint';
 			$p->save();
-
-			# store the webmention-endpoint URL in the config
-			$config = array(
-				'endpoint' => $p->httpUrl,
-			);
-
-			$this->modules->saveModuleConfigData($this, $config);
 		} # end if
+
+		# save the default module configuration
+		$this->modules->saveModuleConfigData($this, self::getDefaultData());
 
 		$sql = <<< END
 		CREATE TABLE {$this->className}_send_queue (
@@ -293,13 +322,26 @@ END;
 		 */
 		$this->addHook('Pages::saved', function($event) {
 
-			# if: checked 'send webmention'
-			if ( $this->input->post->send_webmentions == 1 )
-			{
-				// set_time_limit(0);
-				$page = $event->arguments('page');
+			$page = $event->arguments('page');
 
-				$urls = $this->extractURLs($page->body, $page->httpUrl);
+			# if: page is published, and user checked 'send webmention'
+			if ( !$page->is(Page::statusUnpublished) && $this->input->post->send_webmentions == 1 )
+			{
+				$fields_to_parse = explode(',', $this->fields_to_parse);
+
+				$urls = array();
+
+				# loop: each field to parse for webmention-able URLs
+				foreach ( $fields_to_parse as $field )
+				{
+
+					# if: page has the field; extract URLs
+					if ( $page->template->hasField($field) )
+					{
+						$urls = array_merge($urls, $this->extractURLs($page->{$field}, $page->httpUrl));
+					} # end if
+
+				} # end loop
 
 				if ( $urls )
 				{
@@ -668,9 +710,6 @@ END;
 
 	/**
 	 * This method handles sending webmentions to the URLs in the text.
-	 * @param array $urls
-	 * @param string $source_url
-	 * @param array $extra_parameters
 	 * @access public
 	 */
 	public function sendWebmentions()
@@ -704,12 +743,17 @@ END;
 				{
 					$extra_parameters = array();
 
+					/* Disabled until Vouch development finished
 					if ( $vouch = $this->findVouchFor($row['target']) )
 					{
 						$extra_parameters['vouch'] = $vouch;
-					}
+					}*/
 
 					$responses[] = $this->sendWebmention($endpoint_data, $row['source'], $row['target'], $extra_parameters);
+				}
+				else
+				{
+					$this->log->save('webmentions-sent', sprintf('No endpoint found for %s.', $row['target']));
 				} # end if
 
 				$result2 = $statement_processed->execute(array($row['id']));
@@ -844,7 +888,7 @@ END;
 		## 1. Look for Link: header with webmention rel-value
 
 		# if: link headers
-		if ( $headers['link'] )
+		if ( !empty($headers['link']) )
 		{
 
 			# loop: each header link
@@ -886,7 +930,7 @@ END;
 		## 3. Look for X-Pingback: header
 
 		# if: X-Pingback: header found
-		if ( $headers['pingback'] )
+		if ( !empty($headers['pingback']) )
 		{
 			return array(
 				'type'		=> 'pingback',
@@ -978,23 +1022,30 @@ END;
 		$dom->loadHTML($body);
 		$dom->preserveWhiteSpace = FALSE;
 
-		# get <link> DOMElements
-		$link_elements = $dom->getElementsByTagName('link');
+		$element_types = array('a', 'link');
 
-		# loop: each <link> DOMElement
-		foreach ( $link_elements as $link )
+		# loop: each type of element
+		foreach ( $element_types as $element )
 		{
-			$rel = $link->getAttribute('rel');
-			$href = $link->getAttribute('href');
+			# get the DOMNodeList of links
+			$link_elements = $dom->getElementsByTagName($element);
 
-			if ( empty($links[$rel]) )
+			# loop: each DOMElement
+			foreach ( $link_elements as $link )
 			{
-				$links[$rel] = array($href);
-			}
-			else
-			{
-				$links[$rel][] = $href;
-			}
+				$rel = $link->getAttribute('rel');
+				$href = $link->getAttribute('href');
+
+				if ( empty($links[$rel]) )
+				{
+					$links[$rel] = array($href);
+				}
+				else
+				{
+					$links[$rel][] = $href;
+				}
+
+			} # end loop
 
 		} # end loop
 
