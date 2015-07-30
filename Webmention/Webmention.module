@@ -1132,18 +1132,18 @@ END;
 			$type = ( in_array($target_url, $in_reply_to) ) ? 'reply' : 'mention';
 			$webmention->set('type', $type);
 
-			$like_of = Mf2helper\getPlaintext($entry, 'like-of');
-			$repost_of = Mf2helper\getPlaintext($entry, 'repost-of');
+			$like_of = Mf2helper\getPlaintextArray($entry, 'like-of');
+			$repost_of = Mf2helper\getPlaintextArray($entry, 'repost-of');
 			$rsvp = Mf2helper\getPlaintext($entry, 'rsvp');
 
 			# if: if like-of matches target, set the flag
-			if ( $like_of == $target_url )
+			if ( in_array($target_url, $like_of) )
 			{
 				$webmention->set('is_like', 1);
 			}
 
 			# if: if repost-of matches target, set the flag
-			if ( $repost_of == $target_url )
+			if ( in_array($target_url, $repost_of) )
 			{
 				$webmention->set('is_repost', 1);
 			}
