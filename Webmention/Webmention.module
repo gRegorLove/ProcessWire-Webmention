@@ -85,24 +85,45 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	{
 		$inputfields = new InputfieldWrapper();
 
-		# webmention_endpoint field
-		$field = wire('modules')->get('InputfieldText');
-		$field->name = 'custom_endpoint';
-		$field->label = 'Custom webmention endpoint URL';
-		$field->description = 'If your webmention endpoint is at a different URL, enter it here. Otherwise, leave blank.';
+		# frequencty to process received webmentions
+		$field = wire('modules')->get('InputfieldSelect');
+		$field->label = 'Frequency to automatically process received webmentions';
+		$field->attr('name+id', 'frequency_to_process');
+		$field->columnWidth = 50;
 
-		if ( isset($data['custom_endpoint']) )
+		$options = array(
+			0 => 'Disabled',
+			1 => '1 minute',
+			2 => '2 minutes',
+			3 => '3 minutes',
+			4 => '4 minutes',
+			5 => '5 minutes',
+			10 => '10 minutes',
+			15 => '15 minutes',
+			30 => '30 minutes',
+			45 => '45 minutes',
+			60 => '60 minutes',
+		);
+
+		$field->addOptions($options);
+
+		if ( isset($data['frequency_to_process']) )
 		{
-			$field->value = $data['custom_endpoint'];
+			$field->value = $data['frequency_to_process'];
+		}
+		else
+		{
+			$field->value = 0;
 		}
 
 		$inputfields->add($field);
 
-		# fields_to_parse
+		# ProcessWire fields to parse
 		$field = wire('modules')->get('InputfieldText');
 		$field->name = 'fields_to_parse';
 		$field->label = 'Fields to parse for URLs';
 		$field->description = 'Enter a comma-separated list of field names.';
+		$field->columnWidth = 50;
 
 		if ( isset($data['fields_to_parse']) )
 		{
@@ -115,13 +136,42 @@ class Webmention extends WireData implements Module, ConfigurableModule
 
 		$inputfields->add($field);
 
-		# is_vouch_required field (Vouch support is still under development)
+		# webmention custom endpoint
+		$field = wire('modules')->get('InputfieldText');
+		$field->name = 'custom_endpoint';
+		$field->label = 'Custom webmention endpoint URL';
+		$field->description = 'If your webmention endpoint is at a different URL, enter it here. Otherwise, leave blank.';
+		$field->columnWidth = 50;
+
+		if ( isset($data['custom_endpoint']) )
+		{
+			$field->value = $data['custom_endpoint'];
+		}
+
+		$inputfields->add($field);
+
+		# Require received webmentions include a Vouch URL
 		$field = wire('modules')->get('InputfieldCheckbox');
 		$field->name = 'is_vouch_required';
 		$field->value = 0;
 		$field->checked = ( $data['is_vouch_required'] ) ? 'checked' : '';
 		$field->label = 'Require webmention with vouch';
-		$field->description = 'Vouch is currently under development. It’s not recommended to turn it on yet. :]';
+		$field->description = 'Vouch is currently in beta.';
+		$field->columnWidth = 50;
+
+		$inputfields->add($field);
+
+		# Domains accepted as Vouch URLs
+		$field = wire('modules')->get('InputfieldTextarea');
+		$field->name = 'approved_vouches';
+		$field->label = 'Approved vouch domains';
+		$field->description = 'Enter domains you will accept as vouches.';
+		$field->columnWidth = 50;
+
+		if ( isset($data['approved_vouches']) )
+		{
+			$field->value = $data['approved_vouches'];
+		}
 
 		$inputfields->add($field);
 
@@ -249,8 +299,34 @@ END;
 	 */
 	public function init()
 	{
+		$date = new DateTime();
+		$this->gmt_offset = $date->format('P');
+
 		$this->addHook('LazyCron::every30Seconds', $this, 'processReferer');
 		$this->addHook('LazyCron::every30Seconds', $this, 'sendWebmentions');
+
+		# if: auto-process received webmentions
+		if ( $this->frequency_to_process )
+		{
+
+			switch ( $this->frequency_to_process )
+			{
+				case 1:
+					$cron_frequency = 'everyMinute';
+				break;
+
+				case 60:
+					$cron_frequency = 'everyHour';
+				break;
+
+				default:
+					$cron_frequency = sprintf('every%dMinutes', $this->frequency_to_process);
+				break;
+			}
+
+			$this->addHook('LazyCron::' . $cron_frequency, $this, 'processWebmentions');
+		} # end if: auto-process received webmentions
+
 
 		/**
 		 * Add the Webmention endpoint Link: header, if the page supports webmentions
@@ -623,14 +699,6 @@ END;
 				$this->httpResponse(400, $content_type, $message);
 			} # end if
 
-			# if: vouch is required and missing
-			if ( $this->is_vouch_required && empty($vouch) )
-			{
-				$message = 'Webmention “vouch” parameter is missing.';
-				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
-				$this->httpResponse(400, $content_type, $message);
-			} # end if
-
 			if ( strtolower(parse_url($target, PHP_URL_HOST)) !== strtolower($this->config->httpHost) )
 			{
 				$message = 'Webmention “target” hostname is not valid.';
@@ -648,21 +716,36 @@ END;
 				$this->httpResponse(400, $content_type, $message);
 			}
 
+			$target = $page->httpUrl;
+
 			$this->findFieldtypeWebmentions($page);
 
-			# if: no FieldtypeWebmention field on the target page
+			# if: no FieldtypeWebmention field on the target page; does not accept webmentions
 			if ( empty($this->webmention_field) )
 			{
 				$message = 'Webmention “target” does not accept webmentions.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(400, $content_type, $message);
 			}
-			# else:
-			else
-			{
-				$WebmentionField = $this->webmention_field->name;
 
-				$http = new ProcessWireShim\WireHttp();
+			# if: vouch is required and missing
+			if ( $this->is_vouch_required && empty($vouch) )
+			{
+				$message = 'Webmention “vouch” parameter is required.';
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->httpResponse(449, $content_type, $message);
+			} # end if
+
+			# if: vouch not accepted
+			if ( $vouch && !$this->verifyReceivedVouch($vouch, $source) )
+			{
+				$message = 'Webmention “vouch” was not accepted.';
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->httpResponse(400, $content_type, $message);
+			}
+
+			$http = new WireHttp();
+			$WebmentionField = $this->webmention_field->name;
 
 				# Check source URL for redirects
 				$response = $http->status($source);
@@ -743,7 +826,6 @@ END;
 				$message = 'Webmention queued for processing.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(202, $content_type, $message);
-			} # end if
 
 		}
 		# else: incorect content-type
@@ -1526,6 +1608,8 @@ END;
 	 */
 	public function processReferer()
 	{
+		set_time_limit(0);
+
 		$result = $this->database->query("SELECT * FROM {$this->className}_referer_queue WHERE processed IS NULL ORDER BY created ASC LIMIT 1");
 
 		if ( $result === FALSE || $result->rowCount() == 0 )
@@ -1548,17 +1632,25 @@ END;
 
 		$statement_vouches = $this->database->prepare("INSERT INTO {$this->className}_vouches SET domain = ?, url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
 
+		$ignore_domains = array(
+			'brid.gy',
+			'google.com',
+			'yahoo.com',
+			'bing.com',
+			't.co',
+		);
+
 		# loop: each <a> DOMElement
 		foreach ( $a_elements as $a )
 		{
 			$rel = $a->getAttribute('rel');
 			$href = $a->getAttribute('href');
 
-			# if: link does not have rel=nofollow and does link back
-			if ( ($rel != 'nofollow') && strpos($href, $this->config->httpHost) !== FALSE )
-			{
-				$domain = parse_url($row['url'], PHP_URL_HOST);
+			$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($row['url'], PHP_URL_HOST));
 
+			# if: domain is not ignored, link does not have rel=nofollow, and links back
+			if ( !in_array($domain, $ignore_domains) && ($rel != 'nofollow') && strpos($href, $this->config->httpHost) !== FALSE )
+			{
 				$url = $this->sanitizer->url($row['url']);
 				$result = $statement_vouches->execute(array($domain, $url));
 
@@ -1575,18 +1667,109 @@ END;
 
 
 	/**
-	 * This method is under development
+	 * This method verifies a received vouch URL
+	 * @param string $vouch_url
+	 * @param string $source_url
+	 * @access public
+	 * @see https://indiewebcamp.com/Vouch
+	 */
+	public function verifyReceivedVouch($vouch_url, $source_url)
+	{
+		$http = new WireHttp();
+
+		$approved_vouches = explode("\n", $this->approved_vouches);
+		$approved_vouches = array_map('trim', $approved_vouches);
+
+		$vouch_domain = parse_url($vouch_url, PHP_URL_HOST);
+		$source_domain = parse_url($source_url, PHP_URL_HOST);
+		$source_base_url = parse_url($source_url, PHP_URL_SCHEME) . '://' . $source_domain;
+
+		# if: vouch domain is not accepted
+		if ( !in_array($vouch_domain, $approved_vouches) )
+		{
+			$this->log->save('webmentions-received', sprintf('Vouch domain %s not approved.', $vouch_domain));
+			return FALSE;
+		}
+
+		set_time_limit(0);
+
+		$response = $http->get($vouch_url);
+
+		libxml_use_internal_errors(TRUE);
+		$dom = new DOMDocument('1.0', 'UTF-8');
+		$dom->loadHTML($response);
+		$dom->preserveWhiteSpace = FALSE;
+
+		# get <a> DOMElements
+		$a_elements = $dom->getElementsByTagName('a');
+
+		# loop: each <a> DOMElement
+		foreach ( $a_elements as $a )
+		{
+			$rel = $a->getAttribute('rel');
+			$href = $a->getAttribute('href');
+
+			# if: vouch URL links to source domain and does *not* have rel=nofollow
+			if ( strpos($href, $source_domain) !== FALSE && ($rel != 'nofollow') )
+			{
+				return TRUE;
+			} # end if
+
+		}
+
+		$this->log->save('webmentions-received', sprintf('Vouch %s does not link to %s with rel=nofollow.', $vouch_url, $source_domain));
+		return FALSE;
+	} # end method verifyReceivedVouch()
+
+
+	/**
+	 * This method attempts to find a vouch URL for sending webmentions
 	 * @param string $url
 	 * @access public
-	 * @return
+	 * @return bool|string
+	 * @see https://indiewebcamp.com/Vouch
 	 */
 	public function findVouchFor($url)
 	{
+		$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($url, PHP_URL_HOST));
+
+		$ignore_domains = array(
+			$this->config->httpHost,
+			'brid.gy',
+			'google.com',
+			'yahoo.com',
+			'bing.com',
+			't.co',
+		);
+
+		# if: ignore vouch for this domain
+		if ( in_array($domain, $ignore_domains) )
+		{
+			return FALSE;
+		} # end if
+
+		$http = new WireHttp();
+
 		$checked_domains = array();
 
-		$http = new ProcessWireShim\WireHttp();
-		$base_url = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST);
 		$domain = parse_url($url, PHP_URL_HOST);
+		$base_url = parse_url($url, PHP_URL_SCHEME) . '://' . $domain;
+
+		# First check if this domain is in the vouches table (they already link to us); if so, use that for vouch
+		$result = $this->database->query("SELECT * FROM {$this->className}_vouches WHERE domain = '{$domain}' AND `deleted` IS NULL");
+
+		# if: db/query error
+		if ( $result === FALSE )
+		{
+			return FALSE;
+		}
+		# else if: vouch found
+		else if ( $result->rowCount() > 0 )
+		{
+			$row = $result->fetch(PDO::FETCH_ASSOC);
+			return $row['url'];
+		} # end if
+
 		$response = $http->get($url);
 
 		libxml_use_internal_errors(TRUE);
@@ -1609,7 +1792,7 @@ END;
 				$full_url = Mf2\resolveUrl($base_url, $href);
 				$potential_vouch_domain = parse_url($full_url, PHP_URL_HOST);
 
-				# if: link is external and domain has not alread been checked
+				# if: link is external and domain has not already been checked
 				if ( $potential_vouch_domain != $domain && !in_array($potential_vouch_domain, $checked_domains) )
 				{
 					$checked_domains[] = $potential_vouch_domain;
