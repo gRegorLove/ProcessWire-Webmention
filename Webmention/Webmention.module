@@ -9,15 +9,11 @@
  * @see http://indiewebcamp.com/webmention
  */
 
-#error_reporting(E_ALL);
-#ini_set('display_errors', TRUE);
+use BarnabyWalters\Mf2 as Mf2helper;
+
 
 $dirname = dirname(__FILE__);
 require_once($dirname . '/vendor/autoload.php');
-require_once($dirname . '/GregorMorrill/Webmention/WireHttp.php');
-
-use BarnabyWalters\Mf2 as Mf2helper;
-use GregorMorrill\ProcessWireShim;
 
 class Webmention extends WireData implements Module, ConfigurableModule
 {
@@ -512,7 +508,7 @@ END;
 	 */
 	public function processWebmention(WebmentionItem &$webmention)
 	{
-		$http = new ProcessWireShim\WireHttp();
+		$http = new WireHttp();
 
 		## Verify the target URL
 		$response = $http->status($webmention->target_url);
@@ -1109,7 +1105,7 @@ END;
 	 */
 	protected function fetchBody($url)
 	{
-		$http = new ProcessWireShim\WireHttp();
+		$http = new WireHttp();
 
 		$response = $http->get($url);
 
@@ -1129,7 +1125,7 @@ END;
 	 */
 	protected function fetchHead($url)
 	{
-		$http = new ProcessWireShim\WireHttp();
+		$http = new WireHttp();
 
 		$return_headers = array(
 			'link'		=> array(),
@@ -1619,7 +1615,7 @@ END;
 
 		$row = $result->fetch(PDO::FETCH_ASSOC);
 
-		$http = new ProcessWireShim\WireHttp();
+		$http = new WireHttp();
 		$response = $http->get($row['url']);
 
 		libxml_use_internal_errors(TRUE);
