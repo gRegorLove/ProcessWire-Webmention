@@ -381,6 +381,54 @@ END;
 
 
 	/**
+	 * This method initiates processing received webmentions
+	 * @access public
+	 * @return bool
+	 */
+	public function processWebmentions()
+	{
+
+		foreach ( $this->fields as $field )
+		{
+
+			if ( $field->type instanceof FieldtypeWebmentions )
+			{
+				$fields[] = $field;
+			}
+
+		}
+
+		$count = count($fields);
+
+		if ( !$count )
+		{
+			$this->log->save('webmentions-received', 'No webmention fields found when running processWebmentions');
+			return FALSE;
+		}
+
+		$field = reset($fields);
+		$limit = 5;
+		$selector = sprintf('status=%d, limit=%d, sort=-created', WebmentionItem::statusPending, $limit);
+
+		$webmentions = $field->type->find($field, $selector);
+
+		if ( $webmentions->count() == 0 )
+		{
+			return TRUE;
+		}
+
+		foreach ( $webmentions as $webmention )
+		{
+			$this->processWebmention($webmention);
+
+			$this->saveWebmention($webmention);
+		}
+
+		return TRUE;
+	} # end method processWebmentions()
+
+
+	/**
 	 * This method processes a webmention
 	 * @param WebmentionItem $webmention
 	 * @access public
@@ -495,6 +543,31 @@ END;
 
 		return TRUE;
 	} # end method processWebmention()
+
+
+	/**
+	 * This method saves a webmention field
+	 * @param WebmentionItem $webmention
+	 * @access public
+	 * @return bool
+	 */
+	public function saveWebmention(WebmentionItem $webmention)
+	{
+		$page = $webmention->getPage();
+		$field = $webmention->getField();
+
+		$page->{$field->name}->setTrackChanges(TRUE);
+		$page->{$field->name}->set($webmention->id, $webmention);
+		$page->setOutputFormatting(FALSE);
+
+		if ( !$page->save($field->name, array('quiet' => TRUE)) )
+		{
+			$this->log->save('webmentions-received', sprintf('There was an error saving webmention ID %d', $webmention->id));
+			return FALSE;
+		}
+
+		return TRUE;
+	} # end method saveWebmention()
 
 
 	/**
@@ -727,39 +800,12 @@ END;
 		# array of webmention responses
 		$responses = array();
 
-		$i = 1;
-
 		# loop: each webmention to send
 		while ( $row = $result->fetch(PDO::FETCH_ASSOC) )
 		{
+			$responses[] = $this->sendWebmention($row['source'], $row['target']);
 
-			# if: URL starts with http:// or https://
-			if ( strpos($row['target'], 'http://') === 0 || strpos($row['target'], 'https://') === 0 )
-			{
-				$endpoint_data = $this->discovery($row['target']);
-
-				# if: endpoint found for URL
-				if ( $endpoint_data )
-				{
-					$extra_parameters = array();
-
-					/* Disabled until Vouch development finished
-					if ( $vouch = $this->findVouchFor($row['target']) )
-					{
-						$extra_parameters['vouch'] = $vouch;
-					}*/
-
-					$responses[] = $this->sendWebmention($endpoint_data, $row['source'], $row['target'], $extra_parameters);
-				}
-				else
-				{
-					$this->log->save('webmentions-sent', sprintf('No endpoint found for %s.', $row['target']));
-				} # end if
-
-				$result2 = $statement_processed->execute(array($row['id']));
-			} # end if
-
-			$i++;
+			$result_processed = $statement_processed->execute(array($row['id']));
 		} # end loop
 
 		return $responses;
@@ -767,16 +813,36 @@ END;
 
 
 	/**
-	 * This method handles sending a webmention
-	 * @param array $endpoint_data
+	 * This method sends an individual webmention
 	 * @param string $source
 	 * @param string $target
 	 * @param array $extra_parameters
-	 * @access private
+	 * @access public
 	 */
-	private function sendWebmention($endpoint_data, $source, $target, $extra_parameters = array())
+	public function sendWebmention($source, $target, $extra_parameters = array())
 	{
-		$http = new ProcessWireShim\WireHttp();
+		$http = new WireHttp();
+
+		$endpoint_data = NULL;
+
+		# if: URL starts with http:// or https://
+		if ( strpos($target, 'http://') === 0 || strpos($target, 'https://') === 0 )
+		{
+			$endpoint_data = $this->discovery($target);
+		} # end if
+
+		# if: no endpoint found
+		if ( !$endpoint_data )
+		{
+			$this->log->save('webmentions-sent', sprintf('No endpoint found for %s.', $target));
+			return NULL;
+		}
+
+		# if: vouch available for this target
+		if ( $vouch = $this->findVouchFor($target) )
+		{
+			$extra_parameters['vouch'] = $vouch;
+		}
 
 		$endpoint = $endpoint_data['endpoint'];
 
@@ -811,16 +877,17 @@ END;
 		$http_code = $http->getHttpCode();
 
 		# if: successful webmention
-		if ( in_array($http_code, array('200', '202')) )
+		if ( in_array($http_code, array('200', '201', '202')) )
 		{
 			$message = sprintf('Sent webmention for %s successfully to %s.', $target, $endpoint);
 		}
+		# else: error
 		else
 		{
 			$message = sprintf('Error sending webmention for %s to %s.', $target, $endpoint);
-		}
+		} # end if
 
-		$this->log->save('webmentions-sent', sprintf('%s|%s|%s', $message, $http_code, $response));
+		$this->log->save('webmentions-sent', sprintf('%s|%s|%s|%s', $message, $http_code, http_build_query($data), $response));
 
 		return $response;
 	} # end method sendWebmention()
