@@ -29,6 +29,12 @@ class WebmentionItem extends WireData
 
 
 	/**
+	 * Status for Webmention that has errors
+	 */
+	const statusError = -1;
+
+
+	/**
 	 * Status for Webmention pending review
 	 */
 	const statusPending = 0;

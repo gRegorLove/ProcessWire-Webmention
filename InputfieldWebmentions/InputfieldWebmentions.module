@@ -59,6 +59,7 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 		$options_status = array(
 			WebmentionItem::statusApproved => $this->_x('Approved', 'webmention-status'),
 			WebmentionItem::statusPending => $this->_x('Pending', 'webmention-status'),
+			WebmentionItem::statusError => $this->_x('Error', 'webmention-status'),
 		);
 
 		$options_visibility = array(

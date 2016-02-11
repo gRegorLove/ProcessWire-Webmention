@@ -35,6 +35,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		202	=> 'Accepted',
 		400	=> 'Bad Request',
 		404	=> 'Not Found',
+		449 => 'Retry With',
 		500	=> 'Internal Server Error',
 	);
 
@@ -423,7 +424,6 @@ END;
 			} # end if: checked 'send webmention'
 
 		});
-
 	} # end method init()
 
 
@@ -566,10 +566,15 @@ END;
 			$webmention->source_url = $http_headers['location'];
 		}
 
+		$target_base_url = parse_url($webmention->target_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->target_url, PHP_URL_HOST);
+
+		$pattern = '#(?i)' . $target_base_url . '(?-i)' . preg_replace('#' . $target_base_url . '#i', '', $webmention->target_url) . '#';
+
 		# if: target URL not found in source URL
-		if ( strpos($response, $webmention->target_url) === FALSE )
+		if ( preg_match($pattern, $webmention->target_url) != 1 )
 		{
 			$webmention->content = $webmention->name = sprintf('The URL %s was not found in %s', $webmention->target_url, $webmention->source_url);
+			$webmention->status = WebmentionItem::statusError;
 			$webmention->visibility = WebmentionItem::visibilityPrivate;
 			return FALSE;
 		}
@@ -743,85 +748,85 @@ END;
 			$http = new WireHttp();
 			$WebmentionField = $this->webmention_field->name;
 
-				# Check source URL for redirects
-				$response = $http->status($source);
+			# Check source URL for redirects
+			$response = $http->status($source);
 
-				if ( $response )
+			if ( $response )
+			{
+				$http_headers = $http->getResponseHeaders();
+
+				# if: redirected; update final URL
+				if ( !empty($http_headers['location']) )
 				{
-					$http_headers = $http->getResponseHeaders();
-
-					# if: redirected; update final URL
-					if ( !empty($http_headers['location']) )
-					{
-						$location = array_pop($http_headers['location']);
-						$source = Mf2\resolveUrl($source, $location);
-					}
-
+					$location = array_pop($http_headers['location']);
+					$source = Mf2\resolveUrl($source, $location);
 				}
 
-				# Check target URL for redirects
-				$response = $http->status($target);
+			}
 
-				if ( $response )
+			# Check target URL for redirects
+			$response = $http->status($target);
+
+			if ( $response )
+			{
+				$http_headers = $http->getResponseHeaders();
+
+				# if: redirected; update final URL
+				if ( !empty($http_headers['location']) )
 				{
-					$http_headers = $http->getResponseHeaders();
-
-					# if: redirected; update final URL
-					if ( !empty($http_headers['location']) )
-					{
-						$location = array_pop($http_headers['location']);
-						$target = Mf2\resolveUrl($target, $location);
-					}
-
+					$location = array_pop($http_headers['location']);
+					$target = Mf2\resolveUrl($target, $location);
 				}
 
-				$md5key = md5($source . $target);
-				$item = $page->{$WebmentionField}->get('md5key=' . $md5key);
+			}
 
-				# if: update existing webmention
-				if ( $item )
+			$md5key = md5($source . $target);
+			$item = $page->{$WebmentionField}->get('md5key=' . $md5key);
+
+			# if: update existing webmention
+			if ( $item )
+			{
+
+				if ( $item->status != WebmentionItem::statusPending )
 				{
+					$page->$WebmentionField->setTrackChanges(TRUE);
 
-					if ( $item->status != WebmentionItem::statusPending )
-					{
-						$page->$WebmentionField->setTrackChanges(TRUE);
+					$new_item = $item;
+					$this->processWebmention($new_item);
 
-						$new_item = $item;
-						$this->processWebmention($new_item);
-
-						$page->$WebmentionField->replace($item, $new_item);
-					}
-
+					$page->$WebmentionField->replace($item, $new_item);
 				}
-				# else: add new webmention
-				else
-				{
-					$webmention = new WebmentionItem();
 
-					$webmention->set('md5key', $md5key);
-					$webmention->set('source_url', $source);
-					$webmention->set('target_url', $target);
-					$webmention->set('vouch_url', $vouch);
-					$webmention->set('status', WebmentionItem::statusPending);
-					$webmention->set('visibility', WebmentionItem::visibilityPublic);
-					$webmention->set('created', date('Y-m-d H:i:s'));
+			}
+			# else: add new webmention
+			else
+			{
+				$webmention = new WebmentionItem();
 
-					$page->$WebmentionField->add($webmention);
-				} # end if
+				$webmention->set('md5key', $md5key);
+				$webmention->set('source_url', $source);
+				$webmention->set('target_url', $target);
+				$webmention->set('vouch_url', $vouch);
+				$webmention->set('status', WebmentionItem::statusPending);
+				$webmention->set('visibility', WebmentionItem::visibilityPublic);
+				$webmention->set('created', date('Y-m-d H:i:s'));
 
-				$outputFormatting = $page->outputFormatting;
-				$page->setOutputFormatting(FALSE);
+				$page->$WebmentionField->add($webmention);
+			} # end if
 
-				$saveOptions = array(
-					'quiet' => TRUE
-				);
+			$outputFormatting = $page->outputFormatting;
+			$page->setOutputFormatting(FALSE);
 
-				$page->save($WebmentionField, $saveOptions);
-				$page->setOutputFormatting($outputFormatting);
+			$saveOptions = array(
+				'quiet' => TRUE
+			);
 
-				$message = 'Webmention queued for processing.';
-				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
-				$this->httpResponse(202, $content_type, $message);
+			$page->save($WebmentionField, $saveOptions);
+			$page->setOutputFormatting($outputFormatting);
+
+			$message = 'Webmention queued for processing.';
+			$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+			$this->httpResponse(202, $content_type, $message);
 
 		}
 		# else: incorect content-type
@@ -845,22 +850,29 @@ END;
 	public function queueWebmentions($urls, $source_url)
 	{
 		$unique_urls = array_unique($urls);
+		$source = $this->sanitizer->url($source_url);
 
+		$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET source = ?, target = ?, created = NOW(), modified = NOW()");
+
+		# loop: each unique URL
 		foreach ( $unique_urls as $url )
 		{
-			$source = $this->sanitizer->url($source_url);
 			$target = $this->sanitizer->url($url);
 
-			$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET source = ?, target = ?, created = NOW(), modified = NOW()");
-			$result = $statement->execute(array($source, $target));
-		}
+			# if: only queue webmention is source and target exist
+			if ( $source && $target )
+			{
+				$result = $statement->execute(array($source, $target));
+			} # end if
+
+		} # end loop
 
 		return TRUE;
 	} # end method queueWebmentions()
 
 
 	/**
-	 * This method handles sending webmentions to the URLs in the text.
+	 * This method initiates sending queued webmentions
 	 * @access public
 	 */
 	public function sendWebmentions()
@@ -1261,10 +1273,10 @@ END;
 	 * Returns FALSE if no microformats found in the HTML
 	 * @param string $html
 	 * @param string $url
-	 * @access private
+	 * @access public
 	 * @return mixed
 	 */
-	private function fetchMicroformats($html, $url)
+	public function fetchMicroformats($html, $url)
 	{
 		# parse the content for microformats
 		$parsed = Mf2\parse($html, $url);
@@ -1352,6 +1364,7 @@ END;
 
 			$webmention->set('name', Mf2helper\getPlaintext($entry, 'name'));
 			$webmention->set('content', Mf2helper\getHtml($entry, 'content'));
+			$webmention->set('content_plain', Mf2helper\getPlaintext($entry, 'content'));
 
 			if ( $url = Mf2helper\getPlaintext($entry, 'url') )
 			{
@@ -1504,6 +1517,7 @@ END;
 	 */
 	private function parseDateTime($string_date, $fallback = NULL)
 	{
+		$timezone = NULL;
 		$parsed = date_parse($string_date);
 		$has_timezone = ( isset($parsed['zone']) ) ? TRUE : FALSE;
 
@@ -1522,7 +1536,7 @@ END;
 				$timezone = $date->getTimezone()->getName();
 
 				# if: date is not in ProcessWire timezone; convert
-				if ( !in_array($timezone, array('+00:00', $this->config->timezone)) )
+				if ( !in_array($timezone, $this->gmt_offset) )
 				{
 					$timezone = new DateTimeZone($this->config->timezone);
 					$date->setTimezone($timezone);
@@ -1544,6 +1558,7 @@ END;
 
 		return array(
 			'has_timezone'	=> $has_timezone,
+			'timezone' => $timezone,
 			'date'			=> $date->format('Y-m-d H:i:s')
 		);
 	} # end method parseDateTime()
