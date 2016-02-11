@@ -7,9 +7,8 @@
  * @see http://indiewebcamp.com/webmention
  */
 
-class WebmentionArray extends WireArray
+class WebmentionArray extends PaginatedArray implements WirePaginatable
 {
-
 	/**
 	 * Page that owns these webmentions, required to use the renderForm() or getWebmentionForm() methods.
 	 */
@@ -60,7 +59,7 @@ class WebmentionArray extends WireArray
 		{
 			return FALSE;
 		}
-		// return $item instanceof WebmentionItem;
+
 	} # end method isValidItem()
 
 

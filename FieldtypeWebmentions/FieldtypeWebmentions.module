@@ -166,12 +166,6 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				continue;
 			}
 
-/*			# don't load non-approved webmentions if the user can't edit them
-			if ( !$editable && $item['status'] < WebmentionItem::statusApproved )
-			{
-				continue;
-			}*/
-
 			$webmention = new WebmentionItem();
 
 			foreach ( $item as $key => $val )
@@ -179,7 +173,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 				if ( $key == 'data' )
 				{
-					$key = 'text';
+					$key = 'microformats';
 				}
 
 				$webmention->set($key, $val);
@@ -217,6 +211,8 @@ class FieldtypeWebmentions extends FieldtypeMulti
 			return $sleepValue;
 		}
 
+		$schemaVersion = $field->schemaVersion;
+
 		foreach ( $value as $webmention )
 		{
 			$a = array(
@@ -245,6 +241,11 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				'visibility'		=> $webmention->visibility,
 				'created'			=> $webmention->created,
 			);
+
+			if ( $schemaVersion > 0 )
+			{
+				$a['content_plain'] = $webmention->content_plain;
+			}
 
 			$sleepValue[] = $a;
 		}
@@ -287,6 +288,33 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	 */
 	public function getDatabaseSchema(Field $field)
 	{
+		$schemaVersion = (int) $field->schemaVersion;
+
+		if ( !$schemaVersion )
+		{
+			$database = $this->wire('database');
+			$table = $database->escapeTable($field->getTable());
+
+			try
+			{
+				$database->query("ALTER TABLE `$table` ADD content_plain TEXT");
+				$schemaVersion = 1;
+			}
+			catch ( Exception $e )
+			{
+			}
+
+		}
+
+		if ( ((int) $field->schemaVersion) < $schemaVersion )
+		{
+			$this->message("Updating schema version of '{$field->name}' from $field->schemaVersion to $schemaVersion", Notice::log);
+			$field->schemaVersion = $schemaVersion;
+			$field->save();
+		}
+
+		$schemaVersion = $field->schemaVersion;
+
 		$schema = parent::getDatabaseSchema($field);
 
 		$schema['data'] = 'text';
@@ -300,6 +328,12 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$schema['is_repost'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
 		$schema['is_rsvp'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
 		$schema['content'] = 'text';
+
+		if ( $schemaVersion > 0 )
+		{
+			$schema['content_plain'] = 'text';
+		}
+
 		$schema['url'] = "varchar(255) NOT NULL DEFAULT ''";
 		$schema['name'] = 'text';
 		$schema['author_name'] = "varchar(255) NOT NULL DEFAULT ''";
@@ -403,19 +437,19 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$value = reset($values);
 		$keys = is_array($value) ? array_keys($value) : array('data');
 
-		// cycle through the values, executing an update query for each
+		# cycle through the values, executing an update query for each
 		foreach ( $values as $value )
 		{
 			$sql = $value['id'] ? 'UPDATE ' : 'INSERT INTO ';
 			$sql .= "`{$table}` SET pages_id=" . ((int) $page->id) . ', ';
 
-			// if the value is not an associative array, then force it to be one
+			# if the value is not an associative array, then force it to be one
 			if ( !is_array($value) )
 			{
 				$value = array('data' => $value);
 			}
 
-			// cycle through the keys, which represent DB fields (i.e. data, description, etc.) and generate the update query
+			# cycle through the keys, which represent DB fields (i.e. data, description, etc.) and generate the update query
 			foreach ( $keys as $key )
 			{
 
@@ -499,7 +533,173 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	 */
 	public function getLoadQueryAutojoin(Field $field, DatabaseQuerySelect $query)
 	{
-		return NULL; // make this field not auto-joinable
+		return NULL; # make this field not auto-joinable
+	}
+
+
+	/**
+	 * Given a field and a selector, find all webmentions matching the selector (non-static version)
+	 *
+	 * Note that if you don't specify a limit=n, it will default to a limit of 10
+	 * If you don't specify a sort, it will default to sort=-created
+	 *
+	 * @param Field|string Field object or name of field
+	 * @param string $selectorString Selector string with query
+	 * @return WebmentionArray
+	 * @throws WireException
+	 */
+	public function find($field, $selectorString)
+	{
+
+		if ( is_string($field) )
+		{
+			$field = $this->wire('fields')->get($field);
+		}
+
+		if ( !$field instanceof Field )
+		{
+			throw new WireException('Arg 1 to find() must be a field');
+		}
+
+		$limit = 10;
+		$start = 0;
+		$desc = TRUE;
+		$sort = 'created';
+		$database = $this->wire('database');
+		$table = $database->escapeTable($field->getTable());
+		$sql =  "SELECT * FROM `$table` WHERE id > 0 ";
+		$sqlCount = "SELECT COUNT(*) FROM `$table` WHERE id>0 ";
+		$selectors = new Selectors($selectorString);
+
+		foreach ( $selectors as $selector )
+		{
+			$f = $database->escapeCol($selector->field);
+			$operator = $selector->operator;
+			$value = $selector->value;
+			$_sql = '';
+
+			if ( !$database->isOperator($operator) )
+			{
+				continue;
+			}
+
+			if ( is_array($f) )
+			{
+				$f = reset($f);
+			}
+
+			if ( is_array($value) )
+			{
+				$value = reset($value);
+			}
+
+			if ( $f == 'page' )
+			{
+				$f = 'pages_id';
+			}
+
+			if ( $f == 'user' )
+			{
+				$f = 'created_users_id';
+			}
+
+			if ( in_array($f, array('id', 'status', 'created', 'pages_id', 'parent_id', 'created_users_id', 'upvotes', 'downvotes')) )
+			{
+				$_sql .= "AND $f$operator" . ((int) $value)  . " ";
+			}
+			else if ( $f == 'start' )
+			{
+				$start = (int) $value;
+			}
+			else if ( $f == 'limit' )
+			{
+				$limit = (int) $value;
+			}
+			else if ( $f == 'sort' )
+			{
+				$desc = substr($value, 0, 1) == '-';
+				$value = trim($value, '-');
+
+				if ( in_array($value, array('sort', 'status', 'id', 'pages_id', 'created_users_id', 'created', 'published')) )
+				{
+					$sort = $database->escapeCol($value);
+				}
+
+			}
+			else if ( $f == 'cite' || $f == 'email' || $f == 'ip' )
+			{
+				$value = $database->escapeStr($value);
+				$_sql .= "AND $f$operator'$value' ";
+			}
+
+			$sql .= $_sql;
+			$sqlCount .= $_sql;
+		}
+
+		$sql .= "ORDER BY $sort " . ($desc ? 'DESC' : 'ASC') . ' ';
+		$sql .= "LIMIT $start, $limit";
+
+		$webmentions = new WebmentionArray();
+		$webmentions->setField($field);
+		$webmentions->setStart($start);
+		$webmentions->setLimit($limit);
+
+		$query = $database->prepare($sql);
+		$query->execute();
+		$webmentionPages = array();
+
+		while ( $row = $query->fetch(PDO::FETCH_ASSOC) )
+		{
+			$webmention = new WebmentionItem();
+			$webmention->setField($field);
+
+			foreach ( $row as $key => $value )
+			{
+				if ( $key == 'data' )
+				{
+					$key = 'microformats';
+				}
+
+				$webmention->set($key, $value);
+			}
+
+			$pageID = $row['pages_id'];
+
+			if ( isset($webmentionPages[$pageID]) )
+			{
+				$page = $webmentionPages[$pageID];
+				$webmention->setPage($webmentionPages[$pageID]);
+			}
+			else
+			{
+				$page = $this->wire('pages')->get((int) $pageID);
+				$webmentionPages[$page->id] = $page;
+			}
+
+			$webmention->resetTrackChanges(TRUE);
+			$webmentions->add($webmention);
+
+			if ( $page->id )
+			{
+				$webmention->setPage($page);
+			}
+
+		}
+
+		$query->closeCursor();
+		$query = $database->prepare($sqlCount);
+		$query->execute();
+		list($total) = $query->fetch(PDO::FETCH_NUM);
+		$webmentions->resetTrackChanges();
+		$webmentions->setTotal($total);
+
+		return $webmentions;
+	} # end method find()
+
+
+	function test()
+	{
+		echo '<pre>', print_r($this->input->post); exit;
 	}
 
 }

@@ -1,11 +1,71 @@
-.InputfieldWebmentions .WebmentionsItemHead {
+.InputfieldWebmentionsList p {
+	margin: 0;
+}
+
+.InputfieldWebmentionsList .WebmentionsItemHeadLabel {
+	float: right;
+	padding-right: 1em;
+}
+
+.InputfieldWebmentionsList .WebmentionSummary
+{
+	display: inline-block;
+	margin-left: 58px;
+	width: 80%;
+	/*width: 68%;*/
+	/*padding-right: 2%;*/
+	/*vertical-align: top;*/
+}
+
+	.WebmentionSummary .avatar {
+		float: left;
+		border-radius: 5px;
+		margin-left: -58px;
+		margin-top: 5px;
+		max-width: 50px;
+		vertical-align: top;
+	}
+
+.WebmentionActions
+{
+	margin-top: 0.8em;
+}
+
+	.WebmentionActions p
+	{
+		display: inline-block;
+		width: 25%;
+		vertical-align: top;
+	}
+
+.InputfieldWebmentionsList .WebmentionVisibility,
+.InputfieldWebmentionsList .WebmentionStatus
+{
+	display: inline-block;
+	width: 15%;
+	vertical-align: top;
+}
+
+.WebmentionAdvanced pre
+{
+	padding: 1em;
+	border: 1px solid #ddd;
+	background-color: #f9f9f9;
+	/*background-color: #eee;*/
+	font-family: monospace, monospace;
+	font-size: 1em;
+	display: none;
+	white-space: pre-wrap;
+}
+
+/*.InputfieldWebmentions .WebmentionsItemHead {
 	margin-bottom: 0;
 }
 
 .InputfieldWebmentions p label,
 .InputfieldWebmentions p input,
 .InputfieldWebmentions p select {
-	/*display: block;*/
+	display: block;
 }
 
 .InputfieldWebmentions p label.inline,
@@ -29,10 +89,6 @@
 	width: 15%;
 	vertical-align: top;
 }
-
-
-
-
 
 .InputfieldWebmentions .WebmentionsItemCite,
 .InputfieldWebmentions .WebmentionsItemEmail,
@@ -72,11 +128,6 @@
 }
 
 .InputfieldWebmentionsList .ui-widget-content label {
-	/*font-weight: bold;*/
-}
-
-/*
-.InputfieldWebmentionsList > li > .ui-widget-content label {
 	font-weight: bold;
 }
 */

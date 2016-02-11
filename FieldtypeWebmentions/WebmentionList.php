@@ -42,9 +42,9 @@ class WebmentionList extends Wire implements WebmentionListInterface
 	 * Default options that may be overridden from constructor
 	 */
 	protected $options = array(
-		'headline' => '', 	// '<h3>Comments</h3>',
+		'headline' => '',
 		'encoding' => 'UTF-8',
-		'admin' => FALSE, // shows unapproved webmentions if true
+		'admin' => FALSE,
 	);
 
 
@@ -56,8 +56,8 @@ class WebmentionList extends Wire implements WebmentionListInterface
 	 */
 	public function __construct(WebmentionArray $webmentions, $options = array())
 	{
-		$h3 = $this->_('h3'); // Headline tag
-		$this->options['headline'] = "<$h3>" . $this->_('Comments') . "</$h3>"; // Header text
+		$h3 = $this->_('h3');
+		$this->options['headline'] = "<$h3>" . $this->_('Comments') . "</$h3>";
 
 		$this->webmentions = $webmentions;
 		$this->options = array_merge($this->options, $options);
@@ -118,7 +118,16 @@ class WebmentionList extends Wire implements WebmentionListInterface
 	{
 		$h_card = $this->getHCard($webmention);
 
-		$text = htmlentities(trim($webmention->name), ENT_QUOTES, $this->options['encoding']);
+		if ( $webmention->content_plain )
+		{
+			$text = $webmention->content_plain;
+		}
+		else
+		{
+			$text = $webmention->name;
+		}
+
+		$text = htmlentities(trim($text), ENT_QUOTES, $this->options['encoding']);
 		$text = str_replace("\n\n", "</p><p>", $text);
 		$text = str_replace("\n", "<br />", $text);
 
