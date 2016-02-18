@@ -24,7 +24,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	{
 		return array(
 			'title'		=> __('Webmentions', __FILE__),
-			'version'	=> 100,
+			'version'	=> 110,
 			'summary'	=> __('Field that stores webmentions for a single Page', __FILE__),
 		);
 	}
