@@ -197,6 +197,7 @@ class ProcessWebmentionsManager extends Process
 		$options_status = array(
 			WebmentionItem::statusApproved => $this->_x('Approved', 'webmention-status'),
 			WebmentionItem::statusPending => $this->_x('Pending', 'webmention-status'),
+			WebmentionItem::statusError => $this->_x('Error', 'webmention-status'),
 		);
 
 		$options_visibility = array(
@@ -219,11 +220,29 @@ class ProcessWebmentionsManager extends Process
 			$display_published = $published->format('F j, Y g:ia');
 
 			$author_url = $webmention->author_url;
-			$author_hostname = parse_url($author_url, PHP_URL_HOST);
 			$author_name = htmlspecialchars($webmention->author_name);
-			$webmention_content = ( $webmention->content_plain ) ? htmlspecialchars($webmention->content_plain) : htmlspecialchars($webmention->name);
+			$webmention_hostname = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($webmention->url, PHP_URL_HOST));
 
-			$display_microformats = sprintf('<div class="WebmentionAdvanced"> <a href="#" class="show-advanced">Show advanced information</a> <pre>%s</pre> </div>', htmlspecialchars($webmention->microformats));
+			$display_avatar = '';
+
+			# if: display author avatar
+			if ( $webmention->author_photo )
+			{
+				$display_avatar .= sprintf('<img src="%s" alt="" />', $webmention->author_photo);
+			} # end if
+
+			# if: webmention is a 'like'
+			if ( $webmention->is_like )
+			{
+				$webmention_content = __('likes this');
+			}
+			# else: show webmention content
+			else
+			{
+				$webmention_content = ( $webmention->content_plain ) ? htmlspecialchars($webmention->content_plain) : htmlspecialchars($webmention->name);
+			} # end if
+
+			$display_microformats = htmlspecialchars($webmention->microformats);
 
 			$output .= <<< END
 		<li id="WebmentionsItem{$webmention->id}" class="Inputfield WebmentionsItem{$label_status} ui-widget">
@@ -234,26 +253,38 @@ class ProcessWebmentionsManager extends Process
 				<span class="WebmentionItemBy"> {$author_name} – {$display_published} </span>
 			</label>
 
-			<div class="InputfieldContent ui-widget-content">
+			<div class="InputfieldContent WebmentionItem ui-widget-content">
 
-				<div class="WebmentionSummary">
+				<div class="avatar"> {$display_avatar} </div>
 
-					<img src="{$webmention->author_photo}" alt="" class="avatar" />
+				<div class="content">
 
-					<p> <strong><a href="{$author_url}">{$author_hostname}</a></strong> <a href="{$author_url}">{$author_name}</a> </p>
+					<p> <strong><a href="{$author_url}">{$author_name}</a></strong> on <a href="{$webmention->url}">{$webmention_hostname}</a> </p>
 
 					<p> {$webmention_content} </p>
 
-					<p> <a href="{$webmention->url}">{$display_published}</a> </p>
-
-					{$display_microformats}
+					<p> <a href="{$webmention->target_url}" target="_blank">{$display_published}</a> </p>
 
 					<div class="WebmentionActions">
-
 						<p> <label>Action: {$select_action}</label> </p>
-
 						<p> <label>Visibility: {$select_visibility}</label> </p>
+					</div>
 
+					<div class="WebmentionAdvanced">
+						<a href="#" class="show-advanced">Advanced information</a>
+<pre>
+Source: {$webmention->source_url}
+Target: {$webmention->target_url}
+Vouch: {$webmention->vouch_url}
+Type: {$webmention->type}
+Is Like: {$webmention->is_like}
+Is Repost: {$webmention->is_repost}
+Is RSVP: {$webmention->is_rsvp}
+MD5 Key: {$webmention->md5key}
+
+Parsed microformats:
+{$display_microformats}
+						</pre>
 					</div>
 
 				</div>
@@ -266,7 +297,7 @@ END;
 		# else:
 		else
 		{
-			$hostname = parse_url($webmention->source_url, PHP_URL_HOST);
+			$webmention_hostname = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($webmention->source_url, PHP_URL_HOST));
 
 			$webmention_content = '';
 
@@ -281,37 +312,33 @@ END;
 			<label class="WebmentionsItemHead InputfieldHeader ui-widget-header" for="">
 				<i class="toggle-icon fa fa-angle-down" data-to="fa-angle-down fa-angle-right"></i>
 				<span class="WebmentionsItemHeadLabel"> {$label_status} </span>
-				<span class="WebmentionItemBy"> Mention from {$hostname} </span>
+				<span class="WebmentionItemBy"> Mention from {$webmention_hostname} </span>
 			</label>
 
-			<div class="InputfieldContent ui-widget-content">
+			<div class="InputfieldContent WebmentionItem ui-widget-content">
 
-				<div class="WebmentionSummary">
+				<div class="avatar"> &nbsp; </div>
+
+				<div class="content">
 
 					{$webmention_content}
 
-					<p> Source: <a href="{$webmention->source_url}" target="_blank">{$webmention->source_url} <i class="fa fa-external-link"></i></a> </p>
-					<p> Target: <a href="{$webmention->target_url}" target="_blank">{$webmention->target_url} <i class="fa fa-external-link"></i></a> </p>
-
 					<div class="WebmentionActions">
-
 						<p> <label>Action: {$select_action}</label> </p>
-
 						<p> <label>Visibility: {$select_visibility}</label> </p>
+					</div>
 
+					<div class="WebmentionAdvanced">
+						<a href="#" class="show-advanced">Advanced information</a>
+<pre>
+Source: {$webmention->source_url}
+Target: {$webmention->target_url}
+Vouch: {$webmention->vouch_url}
+MD5 Key: {$webmention->md5key}
+</pre>
 					</div>
 
 				</div>
-
-				<!--
-				<div class="WebmentionVisibility">
-					<p> <label>Visibility: {$select_visibility}</label> </p>
-				</div>
-
-				<div class="WebmentionStatus">
-					<p> Action: {$select_action} </p>
-				</div>
-				-->
 
 			</div>
 
@@ -320,73 +347,7 @@ END;
 		} # end if
 
 		return $output;
-
-		/*
-		$published = new DateTime($webmention->published);
-		$display_published = $published->format('F j, Y g:ia');
-		$display_microformats = '';
-
-		if ( $webmention->status == WebmentionItem::statusApproved )
-		{
-			$label = sprintf('%s %s', $options_status[$webmention->status], $options_visibility[$webmention->visibility]);
-			$item_by = sprintf('%s – %s', $webmention->author_name, $display_published);
-			$display_microformats = sprintf('<div> <a href="#" class="show-advanced">Show advanced information</a> <pre style="display: none;">%s</pre> </div>', htmlspecialchars($webmention->microformats));
-		}
-		else
-		{
-			$label = $options_status[$webmention->status];
-			$item_by = sprintf('Mention from %s', parse_url($webmention->source_url, PHP_URL_HOST));
-		}
-
-		$author_hostname = parse_url($webmention->author_url, PHP_URL_HOST);
-		$author_name = htmlspecialchars($webmention->author_name);
-		$webmention_content = ( $webmention->content_plain ) ? htmlspecialchars($webmention->content_plain) : htmlspecialchars($webmention->name);
-
-		#$display_microformats = print_r($webmention->microformats, TRUE);
-
-		$output .= <<< END
-		<li id="WebmentionsItem{$webmention->id}" class="Inputfield WebmentionsItem{$label_status} ui-widget">
-
-			<label class="WebmentionsItemHead InputfieldHeader ui-widget-header" for="">
-				<i class="toggle-icon fa fa-angle-down" data-to="fa-angle-down fa-angle-right"></i>
-				<span class="WebmentionsItemHeadLabel"> {$label} </span>
-				<span class="WebmentionItemBy"> {$item_by} </span>
-			</label>
-
-			<div class="InputfieldContent ui-widget-content">
-
-				<div class="WebmentionSummary">
-
-					<img src="{$webmention->author_photo}" alt="" class="avatar" />
-
-					<p> <strong><a href="{$webmention->author_url}">{$author_hostname}</a></strong> <a href="{$webmention->author_url}">{$author_name}</a> </p>
-
-					<p> {$webmention_content} </p>
-
-					<p> <a href="{$webmention->url}">{$display_published}</a> </p>
-
-					<p> Target: <a href="{$webmention->target_url}">{$webmention->target_url}</a> </p>
-
-					{$display_microformats}
-
-				</div>
-
-				<div class="WebmentionVisibility">
-					<p> <label>Visibility: {$select_visibility}</label> </p>
-				</div>
-
-				<div class="WebmentionStatus">
-					<p> Action: {$select_action} </p>
-				</div>
-
-			</div>
-
-		</li>
-END;
-
-		return $output;
-		*/
-	}
+	} # end method renderWebmention()
 
 
 	/**
@@ -419,21 +380,19 @@ END;
 	 */
 	protected function renderWebmentions(WebmentionArray $webmentions)
 	{
-		$out = '';
-		$cnt = 0;
+		$count = 0;
+
+		$display_webmentions =
+		$output = '';
+
 		$status = $this->input->urlSegment3;
 		$start = $webmentions->getStart();
 		$limit = $webmentions->getLimit();
 		$total = $webmentions->getTotal();
-		$pageNumPrefix = $this->config->pageNumUrlPrefix;
-		$pageNum = $this->wire('input')->pageNum;
-		$queryString = $this->getQueryString();
 
-		// echo '<pre>',
-		// 	$webmentions->getTotal(), LF,
-		// 	$webmentions->getLimit(), LF,
-		// 	$webmentions->getStart(), LF;
-		// 	exit;
+		$pageNumPrefix = $this->config->pageNumUrlPrefix;
+		$pageNum = $this->input->pageNum;
+		$queryString = http_build_query($this->input->whitelist->getArray());
 
 		# Build pagination
 		$pa = new PageArray();
@@ -465,13 +424,13 @@ END;
 		# loop: each webmention
 		foreach ( $webmentions as $webmention )
 		{
-			$out .= $this->renderWebmention($webmention);
-			$cnt++;
+			$display_webmentions .= $this->renderWebmention($webmention);
+			$count++;
 		} # end loop: each webmention
 
-		$headline = ( $start + 1 ) . '–' . ( $start + $cnt ) . " " . sprintf($this->_('of %d'), $total);
+		$headline = ( $start + 1 ) . '–' . ( $start + $count ) . " " . sprintf($this->_('of %d'), $total);
 
-		if ( $cnt )
+		if ( $count )
 		{
 			$button = $this->modules->get('InputfieldSubmit');
 			$button->attr('name', 'processWebmentions');
@@ -479,7 +438,9 @@ END;
 			$button = $button->render();
 		}
 		else
+		{
 			$button = '';
+		}
 
 		if ( $this->input->pageNum > 1 )
 		{
@@ -488,52 +449,27 @@ END;
 
 		if ( !count($webmentions) )
 		{
-			$headline = $this->_('None to display');
+			$headline = $this->_('No webmentions to display.');
 		}
 
-		return
-			$display_tabs .
-			$display_pagination .
-			sprintf('<h2> %s </h2>', $headline) .
-			"<form action='$queryString' method='post'>" .
-			'<ul class="Inputfields InputfieldWebmentionsList">' . $out . '</ul>' .
-			$display_pagination .
-			$button .
-			"</form>" .
-			"<script>
+		$output = <<< END
+{$display_tabs}
+{$display_pagination}
 
-				jQuery(document).ready(function(){
+<h2> {$headline} </h2>
 
-					jQuery('.show-advanced').click(function(e) {
-						e.preventDefault();
+<form method="post" action="{$queryString}">
 
-						$(this).next().toggle();
-					});
+	<ul class="Inputfields InputfieldWebmentionsList"> {$display_webmentions} </ul>
 
-				}); </script>";
+	{$display_pagination}
 
+	{$button}
 
-		return
-			"$tabsOut" .
-			"$pagerOut" .
-			"<h2>$headline</h2>" .
-			"<form action='$queryString' method='post'>" .
-			'<ul class="Inputfields InputfieldWebmentionsList">' . $out . '</ul>' .
-			// "<div class='CommentItems ui-helper-clearfix'>$out</div>" .
-			"$pagerOut" .
-			"$button" .
-			"</form>" .
-			"<script>
+</form>
+END;
 
-				jQuery(document).ready(function(){
-
-					jQuery('.show-advanced').click(function(e) {
-						e.preventDefault();
-
-						$(this).next().toggle();
-					});
-
-				}); </script>";
+		return $output;
 	} # end method renderWebmentions()
 
 

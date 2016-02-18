@@ -9,7 +9,6 @@
 
 class WebmentionItem extends WireData
 {
-
 	/**
 	 * Action: process
 	 */

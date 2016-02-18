@@ -1,3 +1,7 @@
+strong {
+	font-weight: 700;
+}
+
 .InputfieldWebmentionsList p {
 	margin: 0;
 }
@@ -7,23 +11,25 @@
 	padding-right: 1em;
 }
 
-.InputfieldWebmentionsList .WebmentionSummary
-{
-	display: inline-block;
-	margin-left: 58px;
-	width: 80%;
-	/*width: 68%;*/
-	/*padding-right: 2%;*/
-	/*vertical-align: top;*/
+.WebmentionItem {
+	display: flex;
 }
 
-	.WebmentionSummary .avatar {
-		float: left;
-		border-radius: 5px;
-		margin-left: -58px;
-		margin-top: 5px;
-		max-width: 50px;
+	.WebmentionItem .avatar {
+		flex: 0 0 50px;
 		vertical-align: top;
+	}
+
+	.WebmentionItem .avatar img {
+		border-radius: 0.5rem;
+		max-width: 48px;
+	}
+
+	.WebmentionItem .content {
+		flex: 1 0;
+		padding-left: 1rem;
+		vertical-align: top;
+		flex: 1 0;
 	}
 
 .WebmentionActions
@@ -38,96 +44,13 @@
 		vertical-align: top;
 	}
 
-.InputfieldWebmentionsList .WebmentionVisibility,
-.InputfieldWebmentionsList .WebmentionStatus
-{
-	display: inline-block;
-	width: 15%;
-	vertical-align: top;
-}
-
 .WebmentionAdvanced pre
 {
 	padding: 1em;
 	border: 1px solid #ddd;
 	background-color: #f9f9f9;
-	/*background-color: #eee;*/
 	font-family: monospace, monospace;
 	font-size: 1em;
 	display: none;
 	white-space: pre-wrap;
 }
-
-/*.InputfieldWebmentions .WebmentionsItemHead {
-	margin-bottom: 0;
-}
-
-.InputfieldWebmentions p label,
-.InputfieldWebmentions p input,
-.InputfieldWebmentions p select {
-	display: block;
-}
-
-.InputfieldWebmentions p label.inline,
-.InputfieldWebmentions p input.inline
-{
-	display: inline;
-}
-
-.InputfieldWebmentions .WebmentionSummary
-{
-	display: inline-block;
-	width: 68%;
-	padding-right: 2%;
-	vertical-align: top;
-}
-
-.InputfieldWebmentions .WebmentionVisibility,
-.InputfieldWebmentions .WebmentionStatus
-{
-	display: inline-block;
-	width: 15%;
-	vertical-align: top;
-}
-
-.InputfieldWebmentions .WebmentionsItemCite,
-.InputfieldWebmentions .WebmentionsItemEmail,
-.InputfieldWebmentions .WebmentionsItemWebsite,
-.InputfieldWebmentions .WebmentionsItemStatus,
-.InputfieldWebmentions .WebmentionsItemDelete {
-	float: left;
-	width: 23%;
-	margin-right: 2%;
-}
-
-.InputfieldWebmentions .WebmentionsItemStatus {
-}
-
-.InputfieldWebmentions .WebmentionsItemCite input,
-.InputfieldWebmentions .WebmentionsItemWebsite input,
-.InputfieldWebmentions .WebmentionsItemEmail input {
-	width: 100%;
-}
-
-.InputfieldWebmentions .WebmentionsItemText {
-	clear: both;
-	margin-bottom: 0;
-}
-
-.InputfieldWebmentions .WebmentionsItemHeadLabel {
-	float: right;
-	padding-right: 1em;
-}
-
-.InputfieldWebmentionsList > li > .ui-widget-content {
-	padding: 1em;
-}
-
-.InputfieldWebmentionsList .ui-widget-content p {
-	margin: 0;
-}
-
-.InputfieldWebmentionsList .ui-widget-content label {
-	font-weight: bold;
-}
-*/

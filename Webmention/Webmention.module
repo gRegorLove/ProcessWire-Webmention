@@ -220,42 +220,44 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$this->modules->saveModuleConfigData($this, self::getDefaultData());
 
 		$sql = <<< END
-		CREATE TABLE {$this->className}_send_queue (
-			id int unsigned NOT NULL auto_increment,
-			source varchar(255) NOT NULL DEFAULT '',
-			target varchar(255) NOT NULL DEFAULT '',
-			created datetime NOT NULL,
-			modified datetime NOT NULL,
-			processed datetime,
-			PRIMARY KEY(id)
-		) ENGINE = MYISAM;
+CREATE TABLE `{$this->className}_send_queue` (
+	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	`source` varchar(255) NOT NULL DEFAULT '',
+	`target` varchar(255) NOT NULL DEFAULT '',
+	`vouch` varchar(255) NOT NULL DEFAULT '',
+	`created` datetime NOT NULL,
+	`modified` datetime NOT NULL,
+	`processed` datetime DEFAULT NULL,
+	PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
 END;
 		$this->database->query($sql);
 
 		$sql = <<< END
-		CREATE TABLE {$this->className}_referer_queue (
-			id int unsigned NOT NULL auto_increment,
-			url varchar(255) NOT NULL DEFAULT '',
-			created datetime NOT NULL,
-			modified datetime NOT NULL,
-			processed datetime,
-			PRIMARY KEY(id),
-			UNIQUE KEY(url)
-		) ENGINE = MYISAM;
+CREATE TABLE `{$this->className}_referer_queue` (
+	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	`url` varchar(255) NOT NULL DEFAULT '',
+	`created` datetime NOT NULL,
+	`modified` datetime NOT NULL,
+	`processed` datetime DEFAULT NULL,
+	PRIMARY KEY (`id`),
+	UNIQUE KEY `url` (`url`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
 END;
 		$this->database->query($sql);
 
 		$sql = <<< END
-		CREATE TABLE {$this->className}_vouches (
-			id int unsigned NOT NULL auto_increment,
-			domain varchar(255) NOT NULL DEFAULT '',
-			url varchar(255) NOT NULL DEFAULT '',
-			created datetime NOT NULL,
-			modified datetime NOT NULL,
-			PRIMARY KEY(id),
-			KEY(domain),
-			UNIQUE KEY(url)
-		) ENGINE = MYISAM;
+CREATE TABLE `{$this->className}_vouches` (
+	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	`domain` varchar(255) NOT NULL DEFAULT '',
+	`url` varchar(255) NOT NULL DEFAULT '',
+	`created` datetime NOT NULL,
+	`modified` datetime NOT NULL,
+	`deleted` datetime DEFAULT NULL,
+	PRIMARY KEY (`id`),
+	UNIQUE KEY `url` (`url`),
+	KEY `domain` (`domain`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
 END;
 		$this->database->query($sql);
 	} # end method ___install()
@@ -321,7 +323,7 @@ END;
 				break;
 			}
 
-			$this->addHook('LazyCron::' . $cron_frequency, $this, 'processWebmentions');
+			// $this->addHook('LazyCron::' . $cron_frequency, $this, 'processWebmentions');
 		} # end if: auto-process received webmentions
 
 
@@ -827,7 +829,6 @@ END;
 			$message = 'Webmention queued for processing.';
 			$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 			$this->httpResponse(202, $content_type, $message);
-
 		}
 		# else: incorect content-type
 		else

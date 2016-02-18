@@ -11,7 +11,6 @@
 
 class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 {
-
 	/**
 	 * Provide module information to ProcessWire
 	 * @access public
@@ -35,6 +34,7 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 	{
 		parent::init();
 
+		# Ensure the MySQL session.time_zone is set to the PW timezone
 		$date = new DateTime();
 		$gmt_offset = $date->format('P');
 		$this->database->query("SET @@session.time_zone = '{$gmt_offset}'");
@@ -72,51 +72,84 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 		# loop: each webmention
 		foreach ( $this->attr('value') as $count => $webmention )
 		{
-			$select_action = $this->generateActionSelect($this->name, $webmention->id);
-
+			$label_status = $options_status[$webmention->status];
 			$label_visibility = $options_visibility[$webmention->visibility];
+
+			$select_action = $this->generateActionSelect($this->name, $webmention->id);
 			$select_visibility = $this->generateVisibilitySelect($this->name, $webmention->id, $webmention->visibility);
 
 			# if: approved webmention
 			if ( $webmention->status == WebmentionItem::statusApproved )
 			{
-				$label_status = $options_status[WebmentionItem::statusApproved];
-
 				$published = new DateTime($webmention->published);
 				$display_published = $published->format('F j, Y g:ia');
 
 				$author_url = $webmention->author_url;
-				$author_hostname = parse_url($author_url, PHP_URL_HOST);
 				$author_name = htmlspecialchars($webmention->author_name);
-				$webmention_content = htmlspecialchars($webmention->name);
+				$webmention_hostname = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($webmention->url, PHP_URL_HOST));
+
+				$display_avatar = '';
+
+				# if: display author avatar
+				if ( $webmention->author_photo )
+				{
+					$display_avatar .= sprintf('<img src="%s" alt="" />', $webmention->author_photo);
+				} # end if
+
+				# if: webmention is a 'like'
+				if ( $webmention->is_like )
+				{
+					$webmention_content = __('likes this');
+				}
+				# else: show webmention content
+				else
+				{
+					$webmention_content = ( $webmention->content_plain ) ? htmlspecialchars($webmention->content_plain) : htmlspecialchars($webmention->name);
+				} # end if
+
+				$display_microformats = htmlspecialchars($webmention->microformats);
 
 				$output .= <<< END
 		<li id="WebmentionsItem{$webmention->id}" class="Inputfield WebmentionsItem{$label_status} InputfieldStateCollapsed ui-widget">
 
-			<label class="WebmentionsItemHead InputfieldHeader ui-widget-header" for="">
+			<label class="WebmentionsItemHead InputfieldHeader ui-widget-header">
 				<i class="toggle-icon fa fa-angle-down" data-to="fa-angle-down fa-angle-right"></i>
 				<span class="WebmentionsItemHeadLabel"> {$label_status} ($label_visibility) </span>
-				<span class="WebmentionItemBy"> {$webmention->author_name} – {$display_published} </span>
+				<span class="WebmentionItemBy"> {$author_name} – {$display_published} </span>
 			</label>
 
-			<div class="InputfieldContent ui-widget-content">
+			<div class="InputfieldContent WebmentionItem ui-widget-content">
 
-				<div class="WebmentionSummary">
+				<div class="avatar"> {$display_avatar} </div>
 
-					<img src="{$webmention->author_photo}" alt="" class="avatar" />
+				<div class="content">
 
-					<p> <strong><a href="{$webmention->author_url}">{$author_hostname}</a></strong> <a href="{$webmention->author_url}">{$author_name}</a> </p>
+					<p> <strong><a href="{$author_url}">{$author_name}</a></strong> on <a href="{$webmention->url}">{$webmention_hostname}</a> </p>
 
 					<p> {$webmention_content} </p>
 
-					<p> <a href="{$webmention->url}">{$display_published}</a> </p>
+					<p> <a href="{$webmention->target_url}" target="_blank">{$display_published}</a> </p>
 
 					<div class="WebmentionActions">
-
 						<p> <label>Action: {$select_action}</label> </p>
-
 						<p> <label>Visibility: {$select_visibility}</label> </p>
+					</div>
 
+					<div class="WebmentionAdvanced">
+						<a href="#" class="show-advanced">Advanced information</a>
+<pre>
+Source: {$webmention->source_url}
+Target: {$webmention->target_url}
+Vouch: {$webmention->vouch_url}
+Type: {$webmention->type}
+Is Like: {$webmention->is_like}
+Is Repost: {$webmention->is_repost}
+Is RSVP: {$webmention->is_rsvp}
+MD5 Key: {$webmention->md5key}
+
+Parsed microformats:
+{$display_microformats}
+						</pre>
 					</div>
 
 				</div>
@@ -129,9 +162,7 @@ END;
 			# else: webmention pending
 			else
 			{
-				$label_status = $options_status[$webmention->status];
-				// $label_status = $options_status[WebmentionItem::statusPending];
-				$hostname = parse_url($webmention->source_url, PHP_URL_HOST);
+				$webmention_hostname = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($webmention->source_url, PHP_URL_HOST));
 
 				$webmention_content = '';
 
@@ -146,23 +177,30 @@ END;
 			<label class="WebmentionsItemHead InputfieldHeader ui-widget-header" for="">
 				<i class="toggle-icon fa fa-angle-down" data-to="fa-angle-down fa-angle-right"></i>
 				<span class="WebmentionsItemHeadLabel"> {$label_status} </span>
-				<span class="WebmentionItemBy"> Mention from {$hostname} </span>
+				<span class="WebmentionItemBy"> Mention from {$webmention_hostname} </span>
 			</label>
 
-			<div class="InputfieldContent ui-widget-content">
+			<div class="InputfieldContent WebmentionItem ui-widget-content">
 
-				<div class="WebmentionSummary">
+				<div class="avatar"> &nbsp; </div>
+
+				<div class="content">
 
 					{$webmention_content}
 
-					<p> Source: <a href="{$webmention->source_url}" target="_blank">{$webmention->source_url} <i class="fa fa-external-link"></i></a> </p>
-
 					<div class="WebmentionActions">
-
 						<p> <label>Action: {$select_action}</label> </p>
-
 						<p> <label>Visibility: {$select_visibility}</label> </p>
+					</div>
 
+					<div class="WebmentionAdvanced">
+						<a href="#" class="show-advanced">Advanced information</a>
+<pre>
+Source: {$webmention->source_url}
+Target: {$webmention->target_url}
+Vouch: {$webmention->vouch_url}
+MD5 Key: {$webmention->md5key}
+</pre>
 					</div>
 
 				</div>
@@ -260,89 +298,12 @@ END;
 	 * Process the input from the given WireInputData (usually $input->get or $input->post), load and clean the value for use in this Inputfield.
 	 *
 	 * @param WireInputData $input
+	 * @access public
 	 * @return $this
 	 */
 	public function ___processInput(WireInputData $input)
 	{
 		$this->value = $this->processFormInput($this->value);
-		return $this;
-
-
-
-
-		$fields = array(
-			'action',
-			'visibility',
-		);
-
-		$webmention_module = wire('modules')->get('Webmention');
-
-		echo '<pre>', print_r($this->value); exit;
-
-		# loop:
-		foreach ( $this->value as $webmention )
-		{
-			// echo '<pre>', print_r($webmention), '</pre>'; exit;
-			$data = array();
-
-			# loop:
-			foreach ( $fields as $field )
-			{
-				$input_name = sprintf('%s_%s_%d', $this->name, $field, $webmention->id);
-
-				if ( isset($input[$input_name]) )
-				{
-					$data[$field] = $input[$input_name];
-				}
-
-			} # end loop
-
-			# if: status field exists
-			if ( !empty($data['action']) )
-			{
-
-				if ( $data['action'] == WebmentionItem::actionProcess )
-				{
-					$result = $webmention_module->processWebmention($webmention);
-					$this->message(sprintf($this->_('Processed webmention #%d'), $webmention->id));
-					$this->value->trackChange('update');
-				} # end if
-
-				# if: delete
-				if ( $data['action'] == WebmentionItem::actionDelete )
-				{
-					$this->value->remove($webmention);
-					$this->message(sprintf($this->_('Deleted webmention #%d'), $webmention->id));
-					$this->value->trackChange('remove');
-					continue;
-				} # end if
-
-			} # end if
-
-/*			if ( $data['action'] )
-			{
-				echo '<pre>', print_r($webmention), '</pre>';
-			}*/
-
-			unset($data['action']);
-
-			# loop:
-			foreach ( $data as $key => $value )
-			{
-
-				if ( $webmention->$key != $value )
-				{
-					$webmention->$key = $value;
-					$this->message(sprintf($this->_('Updated %s for webmention #%d'), $key, $webmention->id));
-					$this->value->trackChange('update');
-				}
-
-			} # end loop
-
-		} # end loop
-
-		// exit;
-
 		return $this;
 	} # end method ___processInput()
 
@@ -412,110 +373,5 @@ END;
 
 		return $webmentions;
 	} # end method processFormInput()
-
-
-	/**
-	 * This method
-	 * @param array
-	 * @access public
-	 * @return
-	 */
-	public function test(WebmentionArray $webmentions, $FieldType)
-	{
-		error_reporting(E_ALL);
-		// echo '<pre>', print_r($this); exit;
-		$fields = array(
-			'action',
-			'visibility',
-		);
-
-		$webmention_module = wire('modules')->get('Webmention');
-
-		// header('Content-Type: text/plain; charset=utf8');
-		// $test = $webmentions->get(0);
-		// echo print_r($test), print_r($webmentions); exit;
-
-		$WebmentionField = $FieldType->name;
-
-		# loop:
-		foreach ( $webmentions as $webmention )
-		{
-			$page = $webmention->getPage();
-			$processed_webmention = $webmention;
-
-			$data = array();
-
-			# loop:
-			foreach ( $fields as $field )
-			{
-				$input_name = sprintf('%s_%s_%d', 'InputfieldWebmentions', $field, $webmention->id);
-
-				if ( $this->input->post[$input_name] ) #isset($input[$input_name])
-				{
-					$data[$field] = $this->input->post[$input_name];
-				}
-
-			} # end loop
-
-			// echo print_r($data), print_r($this->input->post); exit;
-
-			# if: status field exists
-			if ( !empty($data['action']) )
-			{
-
-				if ( $data['action'] == WebmentionItem::actionProcess )
-				{
-					$result = $webmention_module->processWebmention($processed_webmention);
-					// echo "DEBUGGING\n\n";
-					// print_r($processed_webmention); exit;
-					$this->message(sprintf($this->_('Processed webmention #%d'), $processed_webmention->id));
-					#$this->value->trackChange('update');
-				} # end if
-
-				# if: delete
-				if ( $data['action'] == WebmentionItem::actionDelete )
-				{
-					$this->value->remove($webmention);
-					$this->message(sprintf($this->_('Deleted webmention #%d'), $webmention->id));
-					$this->value->trackChange('remove');
-					continue;
-				} # end if
-
-				unset($data['action']);
-
-				$page->$WebmentionField->setTrackChanges(TRUE);
-				$page->$WebmentionField->set($webmention->id, $processed_webmention);
-
-				$outputFormatting = $page->outputFormatting;
-				$page->setOutputFormatting(FALSE);
-
-				$saveOptions = array(
-					'quiet' => TRUE
-				);
-
-				$test = $page->save($WebmentionField, $saveOptions);
-				$page->setOutputFormatting($outputFormatting);
-
-				/*
-				# loop:
-				foreach ( $data as $key => $value )
-				{
-
-					if ( $processed_webmention->$key != $value )
-					{
-						$processed_webmention->$key = $value;
-						// $this->message(sprintf($this->_('Updated %s for webmention #%d'), $key, $webmention->id));
-						// $this->value->trackChange('update');
-					}
-
-				} # end loop
-				*/
-
-			} # end if
-
-		} # end loop
-
-		return;
-	} # end method test()
 
 }

@@ -31,15 +31,16 @@ interface WebmentionListInterface
  */
 class WebmentionList extends Wire implements WebmentionListInterface
 {
-
 	/**
 	 * Reference to WebmentionArray provided in constructor
+	 * @access protected
 	 */
 	protected $webmentions = null;
 
 
 	/**
 	 * Default options that may be overridden from constructor
+	 * @access protected
 	 */
 	protected $options = array(
 		'headline' => '',
