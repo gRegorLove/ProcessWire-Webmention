@@ -73,7 +73,7 @@ class WebmentionList extends Wire implements WebmentionListInterface
 	 */
 	public function render()
 	{
-		$out = '';
+		$output = '';
 
 		foreach ( $this->webmentions as $webmention )
 		{
@@ -88,17 +88,15 @@ class WebmentionList extends Wire implements WebmentionListInterface
 
 			}
 
-			$out .= $this->renderItem($webmention);
+			$output .= $this->renderItem($webmention);
 		}
 
-		if ( $out )
+		if ( $output )
 		{
-			$out =
-				"\n" . $this->options['headline'] .
-				"\n<ul class='WebmentionList'>$out\n</ul><!--/WebmentionList-->";
+			$output = sprintf('%s <ul class="WebmentionList"> %s </ul>', $this->options['headline'], $output);
 		}
 
-		return $out;
+		return $output;
 	} # end method render()
 
 
@@ -119,31 +117,34 @@ class WebmentionList extends Wire implements WebmentionListInterface
 	{
 		$h_card = $this->getHCard($webmention);
 
-		if ( $webmention->content_plain )
+		$author_link = sprintf('<a href="%s">%s</a>',
+			htmlencode(filter_var($webmention->author_url, FILTER_VALIDATE_URL)),
+			htmlspecialchars($webmention->author_name)
+		);
+
+		# if: webmention is a 'like'
+		if ( $webmention->is_like )
 		{
-			$text = $webmention->content_plain;
+			$webmention_content = __('likes this');
 		}
+		# else: show webmention content
 		else
 		{
-			$text = $webmention->name;
-		}
+			$webmention_content = ( $webmention->content_plain ) ? htmlspecialchars($webmention->content_plain) : htmlspecialchars($webmention->name);
+		} # end if
 
-		$text = htmlentities(trim($text), ENT_QUOTES, $this->options['encoding']);
-		$text = str_replace("\n\n", "</p><p>", $text);
-		$text = str_replace("\n", "<br />", $text);
-
-		$via = parse_url($webmention->source_url, PHP_URL_HOST);
-		$published = new DateTime($webmention->published);
+		$published = new DateTime($webmention->updated);
+		$via = parse_url($webmention->url, PHP_URL_HOST);
 
 		$output = <<< END
-<li id="Webmention{$webmention->id}" class="mention p-comment h-cite">
+<li id="Webmention{$webmention->id}" class="mention u-comment h-cite">
 
 	<div class="avatar"> {$h_card} </div>
 
 	<div class="note">
-		<p class="reply-context"> <strong><a href="{$webmention->author_url}">{$webmention->author_name}</a></strong> – <time class="dt-published" datetime="{$published->format('c')}" title="{$published->format('F j, Y g:ia T')} via {$via}"><a href="{$webmention->url}" class="u-url">{$published->format('F j, Y')}</a></time> </p>
+		<p class="reply-context"> <strong>{$author_link}</strong> – <time class="dt-published" datetime="{$published->format('c')}" title="{$published->format('F j, Y g:ia T')} via {$via}"><a href="{$webmention->url}" class="u-url">{$published->format('F j, Y')}</a></time> </p>
 
-		<p class="p-content p-name"> {$text} </p>
+		<p class="p-content p-name"> {$webmention_content} </p>
 	</div>
 
 </li>
@@ -163,14 +164,13 @@ END;
 	{
 		$h_card = '';
 
-		if ( $webmention->author_photo )
-		{
-			$h_card = sprintf('<a href="%s" class="p-author h-card"><img src="%s" alt="%s" title="%3$s" class="u-photo"></a>',
-				$webmention->author_url,
-				$webmention->author_photo,
-				$webmention->author_name
-			);
-		}
+		$author_photo = strip_tags($webmention->author_photo);
+
+		$h_card = sprintf('<a href="%s" class="p-author h-card"><img src="%s" alt="%s" title="%3$s" class="u-photo" /></a> ',
+			htmlencode(filter_var($webmention->author_url, FILTER_VALIDATE_URL)),
+			$author_photo,
+			strip_tags($webmention->author_name)
+		);
 
 		return $h_card;
 	} # end method getHCard()
