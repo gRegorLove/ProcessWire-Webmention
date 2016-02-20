@@ -1049,6 +1049,11 @@ END;
 		if ( !empty($headers['link']) )
 		{
 
+			if ( !is_array($headers['link']) )
+			{
+				$headers['link'] = array($headers['link']);
+			}
+
 			# loop: each header link
 			foreach ( $headers['link'] as $header )
 			{
