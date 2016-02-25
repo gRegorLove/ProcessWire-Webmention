@@ -14,6 +14,14 @@
 class ProcessWebmentionsManager extends Process
 {
 	/**
+	 * The name that will be used for the page this module creates
+	 *
+	 * It should be unique and the same (or similar) to the module name, but all lowercase.
+	 * It should not be the same as any other ProcessWire admin page name.
+	 */
+	const pageName = 'webmentions-manager';
+
+	/**
 	 * Statuses and labels that a WebmentionItem can have
 	 * @var array
 	 * @access protected
@@ -474,11 +482,40 @@ END;
 
 
 	/**
+	 * This method handles uninstalling the module
+	 * @access public
+	 */
+	public function ___unInstall()
+	{
+		$page = $this->pages->get($this->config->adminRootPageID)->child('name=setup')->child('name=' . self::pageName);
+		$page->delete();
+	} # end method ___unInstall()
+
+
+	/**
 	 * @access public
 	 */
 	public function ___install()
 	{
-		return parent::___install();
+		# create the page our module will be assigned to
+		$page = new Page();
+		$page->template = 'admin';
+		$page->name = self::pageName;
+
+		# installs to the admin "Setup" menu ... change as you see fit
+		$page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
+		$page->process = $this;
+
+		# we will make the page title the same as our module title
+		# but you can make it whatever you want
+		$info = self::getModuleInfo();
+		$page->title = $info['title'];
+
+		# save the page
+		$page->save();
+
+		# tell the user we created this page
+		$this->message("Created Page: {$page->path}");
 	} # end method ___install()
 
 }
