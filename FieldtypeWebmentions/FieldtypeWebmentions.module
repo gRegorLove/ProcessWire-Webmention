@@ -696,10 +696,4 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		return $webmentions;
 	} # end method find()
 
-
-	function test()
-	{
-		echo '<pre>', print_r($this->input->post); exit;
-	}
-
 }

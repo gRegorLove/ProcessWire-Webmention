@@ -54,7 +54,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			'href'		=> 'http://www.webmention.org',
 			'singular'	=> TRUE,
 			'autoload'	=> TRUE,
-			'installs'	=> array('FieldtypeWebmentions', 'InputfieldWebmentions'),
+			'installs'	=> array('FieldtypeWebmentions', 'InputfieldWebmentions', 'ProcessWebmentionsManager'),
 		);
 	} # end method getModuleInfo()
 
