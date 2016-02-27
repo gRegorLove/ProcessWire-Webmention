@@ -323,7 +323,7 @@ END;
 				break;
 			}
 
-			// $this->addHook('LazyCron::' . $cron_frequency, $this, 'processWebmentions');
+			$this->addHook('LazyCron::' . $cron_frequency, $this, 'processWebmentions');
 		} # end if: auto-process received webmentions
 
 
