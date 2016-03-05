@@ -343,14 +343,15 @@ END;
 			# if: action selected
 			if ( $action )
 			{
-				$processed_webmention = $webmention;
 
 				# if: delete the webmention
 				if ( $action == WebmentionItem::actionDelete )
 				{
-					$webmentions->remove($webmention);
-					$this->message(sprintf($this->_('Deleted webmention #%d'), $webmention->id));
-					$webmentions->trackChange('remove');
+
+					if ( $field->type->deleteWebmention($webmention->getPage(), $field, $webmention) )
+					{
+						$this->message(sprintf($this->_('Deleted webmention #%d'), $webmention->id));
+					}
 
 					continue;
 				}

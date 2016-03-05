@@ -16,9 +16,10 @@ require_once($dirname . '/WebmentionList.php');
 
 class FieldtypeWebmentions extends FieldtypeMulti
 {
-
 	/**
 	 * Provide module information to ProcessWire
+	 * @access public
+	 * @return array
 	 */
 	public static function getModuleInfo()
 	{
@@ -27,11 +28,12 @@ class FieldtypeWebmentions extends FieldtypeMulti
 			'version'	=> 110,
 			'summary'	=> __('Field that stores webmentions for a single Page', __FILE__),
 		);
-	}
+	} # end method getModuleInfo()
 
 
 	/**
-	 *
+	 * Initialization for the fieldtype
+	 * @access public
 	 */
 	public function init()
 	{
@@ -40,11 +42,15 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$date = new DateTime();
 		$gmt_offset = $date->format('P');
 		$this->database->query("SET @@session.time_zone = '{$gmt_offset}'");
-	}
+	} # end method init()
 
 
 	/**
-	 *
+	 * Return blank value for the fieldtype
+	 * @param Page $page
+	 * @param Field $field
+	 * @access public
+	 * @return WebmentionArray
 	 */
 	public function getBlankValue(Page $page, Field $field)
 	{
@@ -53,11 +59,11 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$webmentionArray->setField($field);
 		$webmentionArray->setTrackChanges(TRUE);
 		return $webmentionArray;
-	}
+	} # end method getBlankValue()
 
 
 	/**
-	 *
+	 * @access public
 	 */
 	public function sanitizeValue(Page $page, Field $field, $value)
 	{
@@ -90,11 +96,11 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		}
 
 		return $webmentionArray;
-	}
+	} # end method sanitizeValue()
 
 
 	/**
-	 *
+	 * @access public
 	 */
 	public function getInputfield(Page $page, Field $field)
 	{
@@ -113,16 +119,17 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 	/**
 	 * Update a query to match the text with a fulltext index
+	 * @access public
 	 */
 	public function getMatchQuery($query, $table, $subfield, $operator, $value)
 	{
 
 		if ( $subfield == 'text' )
 		{
-			$subfield = 'data';
+			$subfield = 'content';
 		}
 
-		if ( empty($subfield) || $subfield === 'data' )
+		if ( empty($subfield) || $subfield === 'content' )
 		{
 			$ft = new DatabaseQuerySelectFulltext($query);
 			$ft->match($table, $subfield, $operator, $value);
@@ -130,17 +137,16 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		}
 
 		return parent::getMatchQuery($query, $table, $subfield, $operator, $value);
-	}
+	} # end method getMatchQuery()
 
 
 	/**
 	 * Given a raw value (value as stored in DB), return the value as it would appear in a Page object
-	 *
 	 * @param Page $page
 	 * @param Field $field
 	 * @param string|int|array $value
 	 * @return string|int|array|object $value
-	 *
+	 * @access public
 	 */
 	public function ___wakeupValue(Page $page, Field $field, $value)
 	{
@@ -191,16 +197,16 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$webmentionArray->resetTrackChanges(TRUE);
 
 		return $webmentionArray;
-	}
+	} # end method ___wakeupValue()
 
 
 	/**
 	 * Given an 'awake' value, as set by wakeupValue, convert the value back to a basic type for storage in DB.
-	 *
 	 * @param Page $page
 	 * @param Field $field
 	 * @param string|int|array|object $value
 	 * @return string|int
+	 * @access public
 	 */
 	public function ___sleepValue(Page $page, Field $field, $value)
 	{
@@ -251,7 +257,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		}
 
 		return $sleepValue;
-	}
+	} # end method ___sleepValue()
 
 
 	/**
@@ -264,7 +270,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	protected function checkNewWebmention(Page $page, Field $field, WebmentionItem $webmention)
 	{
 		return;
-	}
+	} # end method checkNewWebmention()
 
 
 	/**
@@ -277,7 +283,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	protected function ___sendNotificationEmail(Page $page, Field $field, WebmentionItem $webmention)
 	{
 		return;
-	}
+	} # end method ___sendNotificationEmail()
 
 
 	/**
@@ -356,15 +362,15 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$schema['keys']['data'] = "FULLTEXT KEY `data` (`data`)";
 
 		return $schema;
-	}
+	} # end method getDatabaseSchema()
 
 
 	/**
 	 * Per the Fieldtype interface, Save the given Field from the given Page to the database
-	 *
 	 * @param Page $page
 	 * @param Field $field
 	 * @return bool
+	 * @access public
 	 */
 	public function ___savePageField(Page $page, Field $field)
 	{
@@ -489,8 +495,47 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 
 	/**
+	 * Delete a given webmention
+	 * @param Page $page
+	 * @param Field $field
+	 * @param WebmentionItem $webmention
+	 * @return mixed
+	 */
+	public function deleteWebmention(Page $page, Field $field, WebmentionItem $webmention)
+	{
+		$table = $this->wire('database')->escapeTable($field->getTable());
+		$sql = "DELETE FROM `$table` WHERE id=:id AND pages_id=:pages_id";
+		$query = $this->wire('database')->prepare($sql);
+		$query->bindValue(':id', $webmention->id, PDO::PARAM_INT);
+		$query->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
+		$webmentions = $page->get($field->name);
+
+		try
+		{
+			$this->wire('pages')->saveFieldReady($page, $field);
+			$result = $query->execute();
+
+			if ( $webmentions )
+			{
+				$webmentions->remove($webmention);
+			}
+
+			$this->wire('pages')->savedField($page, $field);
+		}
+		catch ( Exception $e )
+		{
+			$this->error($e->getMessage());
+			$result = false;
+		}
+
+		return $result;
+	} # end method deleteWebmention
+
+
+	/**
 	 * Configuration that appears with each Webmention fieldtype
-	 *
+	 * @param Field $field
+	 * @access public
 	 */
 	public function ___getConfigInputfields(Field $field)
 	{
@@ -525,16 +570,19 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$inputfields->append($f);
 
 		return $inputfields;
-	}
+	} # end method ___getConfigInputfields()
 
 
 	/**
 	 * For FieldtypeMulti interface, return NULL to indicate that the field is not auto-joinable
+	 * @param Field $field
+	 * @param DatabaseQuerySelect $query
+	 * @access public
 	 */
 	public function getLoadQueryAutojoin(Field $field, DatabaseQuerySelect $query)
 	{
-		return NULL; # make this field not auto-joinable
-	}
+		return NULL;
+	} # end method getLoadQueryAutojoin()
 
 
 	/**
@@ -568,7 +616,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$database = $this->wire('database');
 		$table = $database->escapeTable($field->getTable());
 		$sql =  "SELECT * FROM `$table` WHERE id > 0 ";
-		$sqlCount = "SELECT COUNT(*) FROM `$table` WHERE id>0 ";
+		$sqlCount = "SELECT COUNT(*) FROM `$table` WHERE id > 0 ";
 		$selectors = new Selectors($selectorString);
 
 		foreach ( $selectors as $selector )
@@ -598,12 +646,14 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$f = 'pages_id';
 			}
 
+			/*
 			if ( $f == 'user' )
 			{
 				$f = 'created_users_id';
 			}
+			*/
 
-			if ( in_array($f, array('id', 'status', 'created', 'pages_id', 'parent_id', 'created_users_id', 'upvotes', 'downvotes')) )
+			if ( in_array($f, array('id', 'status', 'created', 'pages_id')) )
 			{
 				$_sql .= "AND $f$operator" . ((int) $value)  . " ";
 			}
@@ -620,13 +670,13 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$desc = substr($value, 0, 1) == '-';
 				$value = trim($value, '-');
 
-				if ( in_array($value, array('sort', 'status', 'id', 'pages_id', 'created_users_id', 'created', 'published')) )
+				if ( in_array($value, array('sort', 'status', 'id', 'pages_id', 'created', 'published')) )
 				{
 					$sort = $database->escapeCol($value);
 				}
 
 			}
-			else if ( $f == 'cite' || $f == 'email' || $f == 'ip' )
+			else
 			{
 				$value = $database->escapeStr($value);
 				$_sql .= "AND $f$operator'$value' ";
