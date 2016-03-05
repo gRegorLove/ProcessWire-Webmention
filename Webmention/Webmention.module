@@ -1833,4 +1833,40 @@ END;
 		return FALSE;
 	} # end method findVouchFor()
 
+
+	/**
+	 * This method searches the FieldtypeWebmentions
+	 * @param string $selector_string
+	 * @access public
+	 * @return WebmentionArray
+	 */
+	public function find($selector_string)
+	{
+
+		# if: webmention field already found
+		if ( $this->webmention_field )
+		{
+			$field = $this->webmention_field;
+		}
+		# else: look for first webmention field
+		else
+		{
+
+			# loop: each field
+			foreach ( $this->fields as $field )
+			{
+
+				# if: add FieldtypeWebmentions to $fields array
+				if ( $field->type instanceof FieldtypeWebmentions )
+				{
+					break;
+				} # end if
+
+			} # end loop
+
+		} # end if
+
+		return $field->type->find($field, $selector_string);
+	} # end method find()
+
 }
