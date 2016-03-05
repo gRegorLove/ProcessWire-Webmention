@@ -482,7 +482,7 @@ END;
 
 		$field = reset($fields);
 		$limit = 5;
-		$selector = sprintf('status=%d, limit=%d, sort=-created', WebmentionItem::statusPending, $limit);
+		$selector = sprintf('status=%d, limit=%d, type!="legacy", sort=-created', WebmentionItem::statusPending, $limit);
 
 		$webmentions = $field->type->find($field, $selector);
 
@@ -952,7 +952,7 @@ END;
 				$extra_parameters
 			);
 
-			$http->setHeader('Accept', 'application/json');
+			$http->setHeader('Accept', 'application/json, application/xml, text/html');
 		}
 
 		$this->log->save('webmentions-sent', sprintf('Initiate sending %s from %s to %s.', $endpoint_data['type'], $source, $target));
