@@ -158,6 +158,20 @@ class Webmention extends WireData implements Module, ConfigurableModule
 
 		$inputfields->add($field);
 
+		# monitor for approved vouch domains
+		$field = wire('modules')->get('InputfieldText');
+		$field->name = 'vouch_whitelist';
+		$field->label = 'Vouch whitelist URL';
+		$field->description = 'You can enter the URL of your blogroll or other whitelist. It will be monitored periodically and new domains will be added to the list of approved vouch domains. No domains will be removed from the approved vouch domains.';
+		$field->columnWidth = 50;
+
+		if ( isset($data['vouch_whitelist']) )
+		{
+			$field->value = $data['vouch_whitelist'];
+		}
+
+		$inputfields->add($field);
+
 		# Domains accepted as Vouch URLs
 		$field = wire('modules')->get('InputfieldTextarea');
 		$field->name = 'approved_vouches';
@@ -303,6 +317,7 @@ END;
 
 		$this->addHook('LazyCron::every30Seconds', $this, 'processReferer');
 		$this->addHook('LazyCron::every30Seconds', $this, 'sendWebmentions');
+		$this->addHook('LazyCron::everyDay', $this, 'processVouchWhitelist');
 
 		# if: auto-process received webmentions
 		if ( $this->frequency_to_process )
@@ -1832,6 +1847,64 @@ END;
 
 		return FALSE;
 	} # end method findVouchFor()
+
+
+	/**
+	 * This method processes the vouch_whitelist URL and adds any new vouch domains found there
+	 * @access protected
+	 * @return bool
+	 */
+	protected function processVouchWhitelist()
+	{
+
+		if ( !$this->vouch_whitelist )
+		{
+			return FALSE;
+		}
+
+		$has_new_domains = FALSE;
+
+		# retrieve the module's config data; break out approved vouch domains into array
+		$data = $this->modules->getModuleConfigData($this);
+		$approved_vouches = explode("\n", $data['approved_vouches']);
+
+		# fetch the vouch_whitelist page
+		$http = new WireHttp();
+		$response = $http->get($this->vouch_whitelist);
+
+		# if: microformats collection
+		if ( $collection = $this->fetchMicroformats($response, $this->vouch_whitelist) )
+		{
+			$cards = Mf2helper\findMicroformatsByType($collection, 'h-card');
+
+			# loop: each h-card
+			foreach ( $cards as $card )
+			{
+				$url = Mf2helper\getPlaintext($card, 'url');
+				$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($url, PHP_URL_HOST));
+
+				# if: domain is not in approved vouches yet; add it
+				if ( !in_array($domain, $approved_vouches) )
+				{
+					$has_new_domains = TRUE;
+					$approved_vouches[] = $domain;
+				} # end if
+
+			} # end loop
+
+		} # end if
+
+		# if: need to update the config
+		if ( $has_new_domains )
+		{
+			# alpha sort the domains, implode to a string, and save
+			sort($approved_vouches);
+			$data['approved_vouches'] = implode("\n", $approved_vouches);
+			$this->modules->saveModuleConfigData($this, $data);
+		} # end if
+
+		return TRUE;
+	} # end method processVouchWhitelist()
 
 
 	/**
