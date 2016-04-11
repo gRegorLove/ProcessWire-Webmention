@@ -13,6 +13,7 @@ Version 1.1.0 is a stable release that covers webmention sending, receiving, par
 * Automatically process received webmentions to extract [microformats](http://microformats.org)
 * Automatically logging referring URLs for use with Webmention Vouch extension
 * Sending, receiving, and validation of Webmention Vouch parameter
+* Automatically monitor a blogroll or whitelist, adding new links to the list of approved vouch domains.
 
 ## Requirements
 * [php-mf2](https://github.com/indieweb/php-mf2) and [php-mf2-cleaner](https://github.com/barnabywalters/php-mf-cleaner) libraries; bundled with this package and may optionally be updated using Composer.
@@ -79,7 +80,19 @@ This module writes two logs: webmentions-sent and webmentions-received.
 ## Vouch (beta)
 The [Vouch](http://indiewebcamp.com/Vouch) is a beta anti-spam extension to Webmention. This plugin will always attempt to send vouch URLs with webmentions, if possible. You can optionally require received webmentions include a vouch URL. In the admin area, Modules > Webmention, check the box to “Require webmention with vouch” and add “Approved vouch domains,” one domain per line.
 
+As of version 1.1.1, there is a new config field “Vouch whitelist URL.” You can enter the URL of your blogroll or other whitelist. It will be monitored periodically and new domains will be added to the list of approved vouch domains. Links must use the [h-card microformat](http://microformats.org/wiki/h-card). No domains will be removed from the approved vouch domains.
+
 ## IndieWeb
 The IndieWeb movement is about owning your data. It encourages you to create and publish on your own site and optionally syndicate to third-party sites. Webmention is one of the core building blocks of this movement.
 
 Learn more and get involved by visiting <http://indiewebcamp.com>.
+
+## Changelog
+### v1.1.1 2016-04-10
+- Updated packaged php-mf2 library to version 0.3.0
+- Added config option to automatically monitor a page for approved vouch domains.
+- Better authorship algorithm support.
+- Fixed issues #2, #3
+
+### v1.1.0 2016-02-25
+Stable release
