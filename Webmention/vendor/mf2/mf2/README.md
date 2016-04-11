@@ -1,5 +1,6 @@
-php-mf2
-=======
+# php-mf2
+
+[![Build Status](https://travis-ci.org/indieweb/php-mf2.png?branch=master)](http://travis-ci.org/indieweb/php-mf2)
 
 php-mf2 is a pure, generic [microformats-2](http://microformats.org/wiki/microformats-2) parser. It makes HTML as easy to consume as JSON.
 
@@ -9,7 +10,7 @@ Instead of having a hard-coded list of all the different microformats, it follow
 
 There are two ways of installing php-mf2. I **highly recommend** installing php-mf2 using [Composer](http://getcomposer.org). The rest of the documentation assumes that you have done so.
 
-To install using Composer, run `./composer.phar require mf2/mf2:~0.2`
+To install using Composer, run `./composer.phar require mf2/mf2:~0.3`
 
 If you can’t or don’t want to use Composer, then php-mf2 can be installed the old way by downloading [`/Mf2/Parser.php`](https://raw.githubusercontent.com/indieweb/php-mf2/master/Mf2/Parser.php), adding it to your project and requiring it from files you want to call its functions from, like this:
 
@@ -279,11 +280,36 @@ Currently php-mf2 passes the majority of it’s own test case, and a good percen
 
 ### Changelog
 
+#### v0.3.0
+
+2016-03-14
+
+* Requires PHP 5.4 at minimum (PHP 5.3 is EOL)
+* Licensed under CC0 rather than MIT
+* Merges Pull requests #70, #73, #74, #75, #77, #80, #82, #83, #85 and #86.
+* Variety of small bug fixes and features including improved whitespace support, removal of style and script contents from plaintext properties
+* All PHPUnit tests passing finally
+
+Many thanks to @aaronpk, @diplix, @dissolve, @dymcx @gRegorLove, @jeena, @veganstraightedge and @voxpelli for all your hard work opening issues and sending and merging PRs!
+
+#### v0.2.12
+
+2015-07-12
+
+* Merges pull requests [#65](https://github.com/indieweb/php-mf2/pull/65), [#66](https://github.com/indieweb/php-mf2/pull/66) and [#67](https://github.com/indieweb/php-mf2/pull/67).
+* Fixes issue [#64](https://github.com/indieweb/php-mf2/issues/64).
+
+Many thanks to @aaronpk, @gRegorLove and @kylewm for contributions, @aaronpk and @kevinmarks for PR management and @tantek for issue reporting!
+
+#### v0.2.11
+
+2015-07-10
+
 #### v0.2.10
 
 2015-04-29
 
-* Merged #58, fixing some parsing bugs and adding support for area element parsing. Thanks so much for your hard work and patience, <a class="h-card" href="http://ben.thatmustbe.me/">Ben</a>!
+* Merged [#58](https://github.com/indieweb/php-mf2/pull/58), fixing some parsing bugs and adding support for area element parsing. Thanks so much for your hard work and patience, <a class="h-card" href="http://ben.thatmustbe.me/">Ben</a>!
 
 #### v0.2.9
 
@@ -399,3 +425,10 @@ Currently php-mf2 passes the majority of it’s own test case, and a good percen
 
 * Added html-safe options
 * Added rel+rel-alternate parsing
+
+
+## License
+
+php-mf2 is dedicated to the public domain using Creative Commons -- CC0 1.0 Universal.
+
+http://creativecommons.org/publicdomain/zero/1.0
