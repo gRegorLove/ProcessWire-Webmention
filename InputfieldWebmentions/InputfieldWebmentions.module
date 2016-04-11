@@ -94,7 +94,14 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 				if ( $webmention->author_photo )
 				{
 					$display_avatar .= sprintf('<img src="%s" alt="" />', $webmention->author_photo);
-				} # end if
+				}
+				else if ( $webmention->author_email )
+				{
+					$display_avatar .= sprintf('<img src="https://www.gravatar.com/avatar/%s?s=%s&d=mm&r=pg" alt="" />',
+						md5(strtolower(trim($webmention->author_email))),
+						50
+					);
+				}
 
 				# if: webmention is a 'like'
 				if ( $webmention->is_like )

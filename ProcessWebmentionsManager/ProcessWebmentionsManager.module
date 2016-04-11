@@ -237,7 +237,14 @@ class ProcessWebmentionsManager extends Process
 			if ( $webmention->author_photo )
 			{
 				$display_avatar .= sprintf('<img src="%s" alt="" />', $webmention->author_photo);
-			} # end if
+			}
+			else if ( $webmention->author_email )
+			{
+				$display_avatar .= sprintf('<img src="https://www.gravatar.com/avatar/%s?s=%s&d=mm&r=pg" alt="" />',
+					md5(strtolower(trim($webmention->author_email))),
+					50
+				);
+			}
 
 			# if: webmention is a 'like'
 			if ( $webmention->is_like )
@@ -289,6 +296,7 @@ Is Like: {$webmention->is_like}
 Is Repost: {$webmention->is_repost}
 Is RSVP: {$webmention->is_rsvp}
 MD5 Key: {$webmention->md5key}
+Email: {$webmentions->author_email}
 
 Parsed microformats:
 {$display_microformats}
