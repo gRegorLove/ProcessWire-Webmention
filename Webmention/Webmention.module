@@ -841,7 +841,7 @@ END;
 			$page->save($WebmentionField, $saveOptions);
 			$page->setOutputFormatting($outputFormatting);
 
-			$message = 'Webmention queued for processing.';
+			$message = sprintf('Webmention from %s queued for processing.', parse_url($source, PHP_URL_HOST));
 			$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 			$this->httpResponse(202, $content_type, $message);
 		}
@@ -973,14 +973,15 @@ END;
 		$this->log->save('webmentions-sent', sprintf('Initiate sending %s from %s to %s.', $endpoint_data['type'], $source, $target));
 
 		$response = $http->post($endpoint, $data);
+		$http_code = $http->getHttpCode();
 
+		/*
 		if ( !$response )
 		{
-			$this->log->save('webmentions-sent', sprintf('Error sending webmention - %s', $http->getError()));
+			$this->log->save('webmentions-sent', sprintf('Error sending webmention - %s: %s', $http_code, $http->getError()));
 			return;
 		}
-
-		$http_code = $http->getHttpCode();
+		*/
 
 		# if: successful webmention
 		if ( in_array($http_code, array('200', '201', '202')) )
