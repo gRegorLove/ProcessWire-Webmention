@@ -45,7 +45,7 @@ class ProcessWebmentionsManager extends Process
 	{
 		return array(
 			'title' => 'Webmentions Manager',
-			'version' => 110,
+			'version' => 111,
 			'author' => 'gRegor Morrill',
 			'summary' => 'Manage webmentions in your site outside of the page editor.',
 			'href' => 'http://gregorlove.com',

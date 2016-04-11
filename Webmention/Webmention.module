@@ -49,7 +49,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	{
 		return array(
 			'title'		=> 'Webmention',
-			'version'	=> 110,
+			'version'	=> 111,
 			'summary'	=> 'Webmention is a simple way to automatically notify any URL when you link to it on your site. From the receiver’s perspective, it is a way to request notification when other sites link to it.',
 			'href'		=> 'http://www.webmention.net',
 			'singular'	=> TRUE,
