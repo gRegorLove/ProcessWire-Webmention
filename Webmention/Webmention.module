@@ -611,20 +611,23 @@ END;
 			# if: h-entry found; parse author from h-card
 			if ( $entry )
 			{
-				$author = $this->parseAuthor($entry, $webmention);
+				$author = $this->getAuthorship($entry, $parsed_content, $webmention);
 			}
+			# else: no h-entry; generic 'mentioned this' content
 			else
 			{
 				$webmention->content = $webmention->name = sprintf('mentioned this');
-			}
+			} # end if
 
+			/*
 			# if: no author h-card found; parse rel-author
 			if ( !$author )
 			{
 				$author = $this->parseRelAuthor($parsed_content, $webmention);
 			}
+			*/
 
-			# if: no rel-author found; fall back to default author as domain name
+			# if: authorship algorithm did not find an author; use domain name as default author
 			if ( !$author )
 			{
 				$author = $this->parseDefaultAuthor($webmention->source_url, $webmention);
@@ -1451,37 +1454,160 @@ END;
 
 
 	/**
-	 * This method handles parsing the author in an h-entry
+	 * This method performs the authorship algorithm
 	 * @param array $entry
+	 * @param array $mf2
 	 * @param WebmentionItem $webmention
-	 * @access private
-	 * @return mixed
+	 * @access public
+	 * @return bool
 	 */
-	private function parseAuthor($entry, WebmentionItem &$webmention)
+	public function getAuthorship($entry, $mf2, WebmentionItem &$webmention)
 	{
-		$author = Mf2helper\getAuthor($entry);
+		$author = '';
+		$author_page = '';
 
-		# if: author h-card found
-		if ( Mf2helper\isMicroformat($author) )
+		# if: author property
+		if ( Mf2helper\hasProp($entry, 'author') )
 		{
-			$webmention->set('author_name', Mf2helper\getPlaintext($author, 'name'));
-			$webmention->set('author_photo', Mf2helper\getPlaintext($author, 'photo'));
-			$webmention->set('author_logo', Mf2helper\getPlaintext($author, 'logo'));
-			$author_urls = Mf2helper\getPlaintextArray($author, 'url');
-			$webmention->set('author_url', reset($author_urls));
-
-			return TRUE;
+			$author = Mf2helper\getAuthor($entry);
 		}
-		# else: no author h-card found
+		# else: check h-feed for author property
 		else
 		{
-			return FALSE;
+			# TODO: authorship step 4. Not sure it's pertinent to this plugin, though.
 		} # end if
 
-	} # end method parseAuthor()
+		# if: author property
+		if ( $author )
+		{
+
+			# if: author h-card found
+			if ( Mf2helper\isMicroformat($author) )
+			{
+				$this->setAuthor($author, $webmention);
+			}
+			# else if: author value is a URL
+			else if ( filter_var($author, FILTER_VALIDATE_URL) )
+			{
+				$author_page = $author;
+			}
+			# else: author value is the author's name
+			else
+			{
+				$webmention->set('author_name', $author);
+			} # end if
+
+		} # end if
+
+		# if: no author_page set yet; rel-author exists
+		if ( !$author_page && !empty($mf2['rels']['author']) )
+		{
+			$author_page = reset($mf2['rels']['author']);
+		} # end if
+
+		# if: parse author_page
+		if ( $author_page )
+		{
+			$http = new WireHttp();
+
+			$response = $http->get($author_page);
+			$mf2_author_page = $this->fetchMicroformats($response, $author_page);
+
+			# if: no microformats
+			if ( $mf2_author_page === FALSE )
+			{
+				return FALSE;
+			} # end if
+
+			$cards = Mf2helper\findMicroformatsByType($mf2_author_page, 'h-card');
+
+			# loop: each h-card (reference authorship step 7.2)
+			foreach ( $cards as $card )
+			{
+				$u_url = Mf2helper\getPlaintext($card, 'url');
+				$u_uid = Mf2helper\getPlaintext($card, 'uid');
+
+				# if: author found
+				if ( $u_url == $u_uid && $u_uid == $author_page )
+				{
+					return $this->setAuthor($card, $webmention, $u_url);
+				} # end if: author found
+
+			} # end loop
+
+			# if: rel-mes on original page (reference authorship step 7.3)
+			if ( !empty($mf2_author_page['rels']['me']) )
+			{
+
+				# loop: each h-card
+				foreach ( $cards as $card )
+				{
+					$u_url = Mf2helper\getPlaintext($card, 'url');
+
+					# if: author found
+					if ( in_array($u_url, $mf2_author_page['rels']['me']) )
+					{
+						return $this->setAuthor($card, $webmention, $u_url);
+					} # end if
+
+				} # end loop
+
+			} # end if
+
+			## reference authorship step 7.4
+
+			# h-cards on the original h-entry's page
+			$cards = Mf2helper\findMicroformatsByType($mf2, 'h-card');
+
+			# loop: each h-card
+			foreach ( $cards as $card )
+			{
+				$u_url = Mf2helper\getPlaintext($card, 'url');
+
+				# if: author found
+				if ( $u_url == $author_page )
+				{
+					return $this->setAuthor($card, $webmention, $u_url);
+				} # end if
+
+			} # end loop
+
+		} # end if
+
+		return FALSE;
+	} # end method getAuthorship()
 
 
 	/**
+	 * This method sets the Webmention's author information from the supplied h-card
+	 * @param array $card: parsed mf2 h-card
+	 * @param WebmentionItem $webmention
+	 * @param string $author_url
+	 * @access protected
+	 * @return bool
+	 */
+	protected function setAuthor($card, WebmentionItem &$webmention, $author_url = '')
+	{
+		$webmention->set('author_name', Mf2helper\getPlaintext($card, 'name'));
+		$webmention->set('author_photo', Mf2helper\getPlaintext($card, 'photo'));
+		$webmention->set('author_logo', Mf2helper\getPlaintext($card, 'logo'));
+
+		if ( $author_url )
+		{
+			$webmention->set('author_url', $author_url);
+		}
+		else
+		{
+			$author_urls = Mf2helper\getPlaintextArray($card, 'url');
+			$webmention->set('author_url', reset($author_urls));
+		}
+
+		return TRUE;
+	} # end method setAuthor()
+
+
+	/**
+	 * DEPRECATED. See method getAuthorship()
 	 * This method handles parsing the first rel-author on a page
 	 * @param array $context
 	 * @param WebmentionItem $webmention
