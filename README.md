@@ -4,7 +4,7 @@
 
 [Webmention](http://webmention.net) is a simple way to notify any URL when you link to it on your site. From the receiver’s perspective, it’s a way to request notifications when other sites link to it.
 
-Version 1.1.0 is a stable release that covers webmention sending, receiving, parsing, and display. It includes an admin interface for browsing and managing all webmentions. It also includes support for the Webmention Vouch extension.
+Version 1.1.2 is a stable release that covers webmention sending, receiving, parsing, and display. It includes an admin interface for browsing and managing all webmentions. It also includes support for the Webmention Vouch extension.
 
 ## Features
 * Webmention endpoint discovery
@@ -88,6 +88,9 @@ The IndieWeb movement is about owning your data. It encourages you to create and
 Learn more and get involved by visiting <http://indiewebcamp.com>.
 
 ## Changelog
+### v1.1.2 2016-04-11
+- Important bug fix when parsing author name.
+
 ### v1.1.1 2016-04-10
 - Updated packaged php-mf2 library to version 0.3.0
 - Added config option to automatically monitor a page for approved vouch domains.

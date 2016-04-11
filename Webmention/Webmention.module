@@ -49,7 +49,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	{
 		return array(
 			'title'		=> 'Webmention',
-			'version'	=> 111,
+			'version'	=> 112,
 			'summary'	=> 'Webmention is a simple way to automatically notify any URL when you link to it on your site. From the receiver’s perspective, it is a way to request notification when other sites link to it.',
 			'href'		=> 'http://www.webmention.net',
 			'singular'	=> TRUE,
@@ -1484,7 +1484,7 @@ END;
 			# if: author h-card found
 			if ( Mf2helper\isMicroformat($author) )
 			{
-				$this->setAuthor($author, $webmention);
+				return $this->setAuthor($author, $webmention);
 			}
 			# else if: author value is a URL
 			else if ( filter_var($author, FILTER_VALIDATE_URL) )
@@ -1495,6 +1495,7 @@ END;
 			else
 			{
 				$webmention->set('author_name', $author);
+				return TRUE;
 			} # end if
 
 		} # end if
