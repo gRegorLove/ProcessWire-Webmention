@@ -1219,14 +1219,14 @@ END;
 				{
 					$rel = trim($temp_rel);
 
-				if ( empty($links[$rel]) )
-				{
-					$links[$rel] = array($href);
-				}
-				else
-				{
-					$links[$rel][] = $href;
-				}
+					if ( empty($links[$rel]) )
+					{
+						$links[$rel] = array($href);
+					}
+					else
+					{
+						$links[$rel][] = $href;
+					}
 
 				}
 
@@ -1593,8 +1593,8 @@ END;
 	protected function setAuthor($card, WebmentionItem &$webmention, $author_url = '')
 	{
 		$webmention->set('author_name', Mf2helper\getPlaintext($card, 'name'));
-		$webmention->set('author_photo', Mf2helper\getPlaintext($card, 'photo'));
-		$webmention->set('author_logo', Mf2helper\getPlaintext($card, 'logo'));
+		$webmention->set('author_photo', $this->cacheImage(Mf2helper\getPlaintext($card, 'photo')) );
+		$webmention->set('author_logo', $this->cacheImage(Mf2helper\getPlaintext($card, 'logo')) );
 
 		if ( $author_url )
 		{
@@ -1608,6 +1608,19 @@ END;
 
 		return TRUE;
 	} # end method setAuthor()
+
+
+	/**
+	 * This method is hookable for caching images.
+	 * By default it does nothing, returning the supplied URL.
+	 * @param string $url
+	 * @access public
+	 * @return string
+	 */
+	public function ___cacheImage($url)
+	{
+		return $url;
+	} # end method ___cacheImage()
 
 
 	/**
