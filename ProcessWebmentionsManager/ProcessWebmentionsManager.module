@@ -188,7 +188,7 @@ class ProcessWebmentionsManager extends Process
 
 		if ( $this->input->post->processWebmentions )
 		{
-			$this->wire('modules')->get('InputfieldWebmentions')->processFormInput($webmentions);
+			$webmentions = $this->wire('modules')->get('InputfieldWebmentions')->processFormInput($webmentions);
 		}
 
 		return $this->renderWebmentions($webmentions);
@@ -202,6 +202,8 @@ class ProcessWebmentionsManager extends Process
 	 */
 	protected function renderWebmention(WebmentionItem $webmention)
 	{
+		$output = '';
+
 		$options_status = array(
 			WebmentionItem::statusApproved => $this->_x('Approved', 'webmention-status'),
 			WebmentionItem::statusPending => $this->_x('Pending', 'webmention-status'),
@@ -296,7 +298,7 @@ Is Like: {$webmention->is_like}
 Is Repost: {$webmention->is_repost}
 Is RSVP: {$webmention->is_rsvp}
 MD5 Key: {$webmention->md5key}
-Email: {$webmentions->author_email}
+Email: {$webmention->author_email}
 
 Parsed microformats:
 {$display_microformats}
