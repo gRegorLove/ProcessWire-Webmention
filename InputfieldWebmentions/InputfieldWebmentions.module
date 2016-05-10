@@ -351,23 +351,25 @@ END;
 			if ( $action )
 			{
 
+				# if: process the webmention
+				if ( $action == WebmentionItem::actionProcess )
+				{
+					$action = $webmention_module->processWebmention($webmention);
+					$is_updated = ( $action ) ? TRUE : FALSE;
+				} # end if
+
 				# if: delete the webmention
 				if ( $action == WebmentionItem::actionDelete )
 				{
 
 					if ( $field->type->deleteWebmention($webmention->getPage(), $field, $webmention) )
 					{
+						$this->log->save('webmentions-received', sprintf('Deleted webmention %d.', $webmention->id));
 						$this->message(sprintf($this->_('Deleted webmention #%d'), $webmention->id));
 					}
 
 					continue;
 				}
-				# else if: process the webmention
-				else if ( $action == WebmentionItem::actionProcess )
-				{
-					$is_updated = TRUE;
-					$webmention_module->processWebmention($webmention);
-				} # end if
 
 			} # end if: action selected
 
