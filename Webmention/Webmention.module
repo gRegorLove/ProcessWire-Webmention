@@ -530,15 +530,11 @@ END;
 		$http = new WireHttp();
 
 		## Verify the target URL
-		$response = $http->status($webmention->target_url);
-
-		if ( !$response )
-		{
-			return FALSE;
-		}
+		$target_response = $http->get($webmention->target_url);
+		$http_code = $http->getHttpCode();
 
 		# if: webmention target is HTTP 404
-		if ( $response == 404 )
+		if ( $http_code == 404 )
 		{
 			$webmention->content = $webmention->name = sprintf('The target URL %s was not found.', $webmention->target_url);
 			$webmention->status = WebmentionItem::statusError;
@@ -586,12 +582,32 @@ END;
 			$webmention->source_url = $http_headers['location'];
 		}
 
-		$target_base_url = parse_url($webmention->target_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->target_url, PHP_URL_HOST);
+		/**
+		 * If the soruce URL is already listed in the target page,
+		 * that means this is likely a notification rather than
+		 * a mention or reply. Do nothing for now until more experimentation
+		 * is done with update/delete and reply-contexts.
+		 * Discussion: https://indiewebcamp.com/reply-context#CRUD
+		 */
 
-		$pattern = '#(?i)' . $target_base_url . '(?-i)' . preg_replace('#' . $target_base_url . '#i', '', $webmention->target_url) . '#';
+		$source_base_url = parse_url($webmention->source_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->source_url, PHP_URL_HOST);
+		$source_pattern = '#(?i)' . $source_base_url . '(?-i)' . preg_replace('#' . $source_base_url . '#i', '', $webmention->source_url) . '#';
+
+		# if: source URL is already linked from the target; set a simple private 'linked' message
+		if ( preg_match($source_pattern, $target_response) === 1 )
+		{
+			$webmention->content = $webmention->name = sprintf('The URL %s sent a notification to %s', $webmention->source_url, $webmention->target_url);
+			$webmention->status = WebmentionItem::statusApproved;
+			$webmention->visibility = WebmentionItem::visibilityPrivate;
+
+			return WebmentionItem::actionProcess;
+		} # end if
+
+		$target_base_url = parse_url($webmention->target_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->target_url, PHP_URL_HOST);
+		$target_pattern = '#(?i)' . $target_base_url . '(?-i)' . preg_replace('#' . $target_base_url . '#i', '', $webmention->target_url) . '#';
 
 		# if: target URL not found in source URL
-		if ( preg_match($pattern, $webmention->target_url) != 1 )
+		if ( preg_match($target_pattern, $response) != 1 )
 		{
 			$webmention->content = $webmention->name = sprintf('The URL %s was not found in %s', $webmention->target_url, $webmention->source_url);
 			$webmention->status = WebmentionItem::statusError;

@@ -111,7 +111,17 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 				# else: show webmention content
 				else
 				{
-					$webmention_content = ( $webmention->content_plain ) ? htmlspecialchars($webmention->content_plain) : htmlspecialchars($webmention->name);
+
+					if ( $webmention->content_plain && ($webmention->name != $webmention->content_plain) )
+					{
+						$content = $webmention->name;
+					}
+					else
+					{
+						$content = $webmention->content_plain;
+					}
+
+					$webmention_content = htmlspecialchars($content);
 				} # end if
 
 				$display_microformats = htmlspecialchars($webmention->microformats);
