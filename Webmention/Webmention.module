@@ -10,10 +10,12 @@
  */
 
 use BarnabyWalters\Mf2 as Mf2helper;
+use GregorMorrill\ProcessWireShim;
 
 
 $dirname = dirname(__FILE__);
 require_once($dirname . '/vendor/autoload.php');
+require_once($dirname . '/GregorMorrill/Webmention/WireHttp.php');
 
 class Webmention extends WireData implements Module, ConfigurableModule
 {
@@ -1162,7 +1164,7 @@ END;
 	 */
 	protected function fetchHead($url)
 	{
-		$http = new WireHttp();
+		$http = new ProcessWireShim\WireHttp();
 
 		$return_headers = array(
 			'link'		=> array(),
@@ -1217,6 +1219,11 @@ END;
 			{
 				$rel = $link->getAttribute('rel');
 				$href = $link->getAttribute('href');
+				$rels = explode(' ', $rel);
+
+				foreach ( $rels as $temp_rel )
+				{
+					$rel = trim($temp_rel);
 
 				if ( empty($links[$rel]) )
 				{
@@ -1225,6 +1232,8 @@ END;
 				else
 				{
 					$links[$rel][] = $href;
+				}
+
 				}
 
 			} # end loop
