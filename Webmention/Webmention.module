@@ -1370,13 +1370,13 @@ END;
 			$rsvp = Mf2helper\getPlaintext($entry, 'rsvp');
 
 			# if: if like-of matches target, set the flag
-			if ( in_array($target_url, $like_of) )
+			if ( $like_of && in_array($target_url, $like_of) )
 			{
 				$webmention->set('is_like', 1);
 			}
 
 			# if: if repost-of matches target, set the flag
-			if ( in_array($target_url, $repost_of) )
+			if ( $repost_of && in_array($target_url, $repost_of) )
 			{
 				$webmention->set('is_repost', 1);
 			}
@@ -1685,7 +1685,7 @@ END;
 				$timezone = $date->getTimezone()->getName();
 
 				# if: date is not in ProcessWire timezone; convert
-				if ( !in_array($timezone, $this->gmt_offset) )
+				if ( $timezone != $this->gmt_offset )
 				{
 					$timezone = new DateTimeZone($this->config->timezone);
 					$date->setTimezone($timezone);
