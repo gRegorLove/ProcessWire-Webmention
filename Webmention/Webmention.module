@@ -675,6 +675,15 @@ END;
 			return FALSE;
 		}
 
+		# clear the page cache
+		$PageRender = $this->wire('modules')->get('PageRender');
+		$cf = $PageRender->getCacheFile($page);
+
+		if ( $cf->exists() )
+		{
+			$cf->remove();
+		}
+
 		return TRUE;
 	} # end method saveWebmention()
 
@@ -849,11 +858,7 @@ END;
 			$outputFormatting = $page->outputFormatting;
 			$page->setOutputFormatting(FALSE);
 
-			$saveOptions = array(
-				'quiet' => TRUE
-			);
-
-			$page->save($WebmentionField, $saveOptions);
+			$page->save($WebmentionField, array('quiet' => TRUE));
 			$page->setOutputFormatting($outputFormatting);
 
 			$message = sprintf('Webmention from %s queued for processing.', parse_url($source, PHP_URL_HOST));
