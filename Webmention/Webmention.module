@@ -62,6 +62,12 @@ class Webmention extends WireData implements Module, ConfigurableModule
 
 
 	/**
+	 *
+	 */
+	const SCHEMA_VERSION = 2;
+
+
+	/**
 	 * This method gets the module's default config data
 	 * @access public
 	 * @return array
@@ -70,6 +76,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	{
 		return array(
 			'fields_to_parse' => 'body',
+			'schema_version' => 1,
 		);
 	} # end method getDefaultData()
 
@@ -198,6 +205,10 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	 */
 	public function __construct()
 	{
+		foreach ( self::getDefaultData() as $key => $value )
+		{
+			$this->$key = $value;
+		}
 	} # end method __construct()
 
 
@@ -317,6 +328,12 @@ END;
 		$date = new DateTime();
 		$this->gmt_offset = $date->format('P');
 
+		# if: not using the latest schema; upgrade database
+		if ( $this->schema_version < self::SCHEMA_VERSION )
+		{
+			$this->updateDatabaseSchema();
+		}
+
 		$this->addHook('LazyCron::every30Seconds', $this, 'processReferer');
 		$this->addHook('LazyCron::every30Seconds', $this, 'sendWebmentions');
 		$this->addHook('LazyCron::everyDay', $this, 'processVouchWhitelist');
@@ -435,9 +452,12 @@ END;
 
 				} # end loop
 
+				$urls = array_merge($urls, $this->getWebmentionURLs($page->id));
+				$urls = array_unique($urls);
+
 				if ( $urls )
 				{
-					$this->queueWebmentions($urls, $page->httpUrl);
+					$this->queueWebmentions($urls, $page->httpUrl, $page->id);
 				}
 
 			} # end if: checked 'send webmention'
@@ -877,18 +897,47 @@ END;
 
 
 	/**
+	 * This method returns an array of URLs webmentions were sent to for a page ID
+	 * @param int $page_id
+	 * @access public
+	 * @return array
+	 */
+	public function getWebmentionURLs($page_id)
+	{
+		$statement = $this->database->prepare("SELECT target FROM {$this->className}_send_queue WHERE pages_id = ? ORDER BY created ASC");
+		$result = $statement->execute(array($page_id));
+
+		if ( $result === FALSE || $statement->rowCount() == 0 )
+		{
+			return array();
+		}
+
+		$urls = array();
+
+		# loop: each webmention to send
+		while ( $row = $statement->fetch(PDO::FETCH_ASSOC) )
+		{
+			$urls[] = $row['target'];
+		} # end loop
+
+		return $urls;
+	} # end method getWebmentionURLs()
+
+
+	/**
 	 * This method adds URLs to a queue for asynchronous webmention sending
 	 * @param array $urls
 	 * @param string $source_url
+	 * @param int $page_id
 	 * @access public
 	 * @return bool
 	 */
-	public function queueWebmentions($urls, $source_url)
+	public function queueWebmentions($urls, $source_url, $page_id)
 	{
 		$unique_urls = array_unique($urls);
 		$source = $this->sanitizer->url($source_url);
 
-		$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET source = ?, target = ?, created = NOW(), modified = NOW()");
+		$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET pages_id = ?, source = ?, target = ?, created = NOW(), modified = NOW()");
 
 		# loop: each unique URL
 		foreach ( $unique_urls as $url )
@@ -898,7 +947,7 @@ END;
 			# if: only queue webmention is source and target exist
 			if ( $source && $target )
 			{
-				$result = $statement->execute(array($source, $target));
+				$result = $statement->execute(array($page_id, $source, $target));
 			} # end if
 
 		} # end loop
@@ -2106,5 +2155,47 @@ END;
 
 		return $field->type->find($field, $selector_string);
 	} # end method find()
+
+
+	/**
+	 * Update database schema
+	 *
+	 * This method applies incremental updates until latest schema version is
+	 * reached, while also keeping schema_version config setting up to date.
+	 *
+	 */
+	private function updateDatabaseSchema()
+	{
+
+		# loop:
+		while ( $this->schema_version < self::SCHEMA_VERSION )
+		{
+			++$this->schema_version;
+
+			switch ( $this->schema_version )
+			{
+				case 2:
+					$sql = "ALTER TABLE {$this->className}_send_queue ADD pages_id INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER id";
+				break;
+
+				default:
+					throw new WireException("Unrecognized database schema version: $this->schema_version");
+				break;
+			}
+
+			if ( $sql && $this->database->exec($sql) !== FALSE )
+			{
+				$config_data = $this->modules->getModuleConfigData($this);
+				$config_data['schema_version'] = $this->schema_version;
+				$this->modules->saveModuleConfigData($this, $config_data);
+			}
+			else
+			{
+				throw new WireException("Couldn't update database schema to version $this->schema_version");
+			}
+
+		} # end loop
+
+	} # end method updateDatabaseSchema()
 
 }
