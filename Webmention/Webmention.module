@@ -1081,7 +1081,7 @@ END;
 		$response = array();
 
 		# regex pattern to match URLs
-		$pattern_absolute = "~\b(?:https?://)[\w-]*[a-z][\w-]*(?:\.[\w-]+)+(?:/[\w\./%+?=&#\~-]+)?\b~i";
+		$pattern_absolute = "~\b(?:https?://)[\w-]*[a-z][\w-]*(?:\.[\w-]+)+(?:/[\w\./%+?=&(amp;)?#\~-]+)?\b~i";
 		$pattern_relative = '#(?<=href=(?:"|\')|href=)(?!http|mailto)[^"\']+(?=(?:"|\'|>))#U';
 
 		# match all URLs in the text
