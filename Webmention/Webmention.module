@@ -1021,6 +1021,13 @@ END;
 
 		$endpoint = $endpoint_data['endpoint'];
 
+		# if: endpoint is a loopback
+		if ( $this->isLoopback($endpoint) )
+		{
+			$this->log->save('webmentions-sent', sprintf('Endpoint %s is localhost or a loopback address. Skipping.', $endpoint));
+			return FALSE;
+		} # end if
+
 		# if: sending pingback as fallback
 		if ( $endpoint_data['type'] == 'pingback' )
 		{
@@ -1199,6 +1206,47 @@ END;
 
 		return NULL;
 	} # end method discovery()
+
+
+	/**
+	 * This method determines if a URL is is a loopback
+	 * @param string $url
+	 * @access public
+	 * @return bool
+	 */
+	public function isLoopback($url)
+	{
+		$domain = parse_url($url, PHP_URL_HOST);
+
+		if ( $domain == 'localhost' )
+		{
+			return TRUE;
+		}
+
+		$records = dns_get_record($domain);
+		$ips = array();
+
+		# loop: each DNS record
+		foreach ( $records as $record )
+		{
+
+			# if: host matches and the record is A or AAAA
+			if ( $record['host'] == $domain && in_array($record['type'], array('A', 'AAAA')) )
+			{
+				$ip = ( $record['type'] == 'A' ) ? $record['ip'] : $record['ipv6'];
+
+				# if: the IP address is in the reserved range, this is a loopback
+				if ( filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) === FALSE )
+				{
+					return TRUE;
+				} # end if
+
+			} # end if
+
+		} # end loop
+
+		return FALSE;
+	} # end method isLoopback()
 
 
 	/**
