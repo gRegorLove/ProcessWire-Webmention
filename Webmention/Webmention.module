@@ -744,6 +744,9 @@ END;
 			$source = $this->input->post('source');
 			$target = $this->input->post('target');
 			$vouch = $this->input->post('vouch');
+			$source_sanitized = filter_var($source, FILTER_VALIDATE_URL);
+			$target_sanitized = filter_var($target, FILTER_VALIDATE_URL);
+			$vouch_sanitized = filter_var($vouch, FILTER_VALIDATE_URL);
 
 			# if: source is missing
 			if ( empty($source) )
@@ -753,12 +756,52 @@ END;
 				$this->httpResponse(400, $content_type, $message);
 			} # end if
 
+			# if: source is not a valid URL
+			if ( empty($source_sanitized) )
+			{
+				$message = 'Webmention “source” parameter is not a valid URL.';
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->httpResponse(400, $content_type, $message);
+			}
+
 			# if: target is missing
 			if ( empty($target) )
 			{
 				$message = 'Webmention “target” parameter is missing.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(400, $content_type, $message);
+			} # end if
+
+			# if: target is not a valid URL
+			if ( empty($target_sanitized) )
+			{
+				$message = 'Webmention “target” parameter is not a valid URL.';
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->httpResponse(400, $content_type, $message);
+			} # end if
+
+			# if: source equals target
+			if ( $source_sanitized == $target_sanitized )
+			{
+				$message = 'Webmention “source” and “target” parameters cannot be the same URL.';
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->httpResponse(400, $content_type, $message);
+			}
+
+			# if: vouch is required and missing
+			if ( $this->is_vouch_required && empty($vouch) )
+			{
+				$message = 'Webmention “vouch” parameter is required.';
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->httpResponse(449, $content_type, $message);
+			} # end if
+
+			# if: vouch supplied, but is not a valid url
+			if ( $vouch && empty($vouch_sanitized) )
+			{
+				$message = 'Webmention “vouch” parameter is is not a valid URL.';
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->httpResponse(449, $content_type, $message);
 			} # end if
 
 			if ( strtolower(parse_url($target, PHP_URL_HOST)) !== strtolower($this->config->httpHost) )
@@ -789,14 +832,6 @@ END;
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(400, $content_type, $message);
 			}
-
-			# if: vouch is required and missing
-			if ( $this->is_vouch_required && empty($vouch) )
-			{
-				$message = 'Webmention “vouch” parameter is required.';
-				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
-				$this->httpResponse(449, $content_type, $message);
-			} # end if
 
 			# if: vouch not accepted
 			if ( $vouch && !$this->verifyReceivedVouch($vouch, $source) )
