@@ -233,6 +233,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			$t = new Template();
 			$t->label = 'Webmention Endpoint';
 			$t->name = 'webmention-endpoint';
+			$t->filename = 'webmention-endpoint';
 			$t->fieldgroup = $fg;
 			$t->save();
 
