@@ -74,6 +74,8 @@ class ProcessWebmentionsManager extends Process
 	{
 		parent::init();
 
+		$this->modules->get('FieldtypeWebmentions');
+
 		$this->statuses = array(
 			WebmentionItem::statusApproved => $this->_('approved'),
 			WebmentionItem::statusPending => $this->_('pending'),
@@ -111,7 +113,8 @@ class ProcessWebmentionsManager extends Process
 		# if: no webmention fields
 		if ( !$count )
 		{
-			return $this->error($this->_('There are no webmentions fields installed'));
+			$this->error($this->_('There are no webmentions fields installed'));
+			return sprintf('<p> %s </p>', $this->_('Please add a Webmention field to your template(s) first.'));
 		} # end if
 
 		# if: only one field; redirect to 'all' for the field
@@ -151,14 +154,16 @@ class ProcessWebmentionsManager extends Process
 
 		if ( !$name )
 		{
-			return $this->error($this->_('No webmentions field specified in URL'));
+			$this->error($this->_('No webmentions field specified in URL'));
+			$this->session->redirect($this->page->url, false);
 		}
 
 		$field = $this->fields->get($name);
 
 		if ( !$field || !$field->type instanceof FieldtypeWebmentions )
 		{
-			return $this->error($this->_('Unrecognized field'));
+			$this->error($this->_('Unrecognized field'));
+			$this->session->redirect($this->page->url, false);
 		}
 
 		$status = $this->input->urlSegment3;
