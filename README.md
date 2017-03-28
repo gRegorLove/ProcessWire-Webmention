@@ -78,16 +78,23 @@ You can add this sample CSS if using the built-in render() method:
 This module writes two logs: webmentions-sent and webmentions-received.
 
 ## Vouch (beta)
-The [Vouch](http://indiewebcamp.com/Vouch) is a beta anti-spam extension to Webmention. This plugin will always attempt to send vouch URLs with webmentions, if possible. You can optionally require received webmentions include a vouch URL. In the admin area, Modules > Webmention, check the box to “Require webmention with vouch” and add “Approved vouch domains,” one domain per line.
+The [Vouch](https://indieweb.org/Vouch) is a beta anti-spam extension to Webmention. This plugin will always attempt to send vouch URLs with webmentions, if possible. You can optionally require received webmentions include a vouch URL. In the admin area, Modules > Webmention, check the box to “Require webmention with vouch” and add “Approved vouch domains,” one domain per line.
 
 As of version 1.1.1, there is a new config field “Vouch whitelist URL.” You can enter the URL of your blogroll or other whitelist. It will be monitored periodically and new domains will be added to the list of approved vouch domains. Links must use the [h-card microformat](http://microformats.org/wiki/h-card). No domains will be removed from the approved vouch domains.
 
 ## IndieWeb
 The IndieWeb movement is about owning your data. It encourages you to create and publish on your own site and optionally syndicate to third-party sites. Webmention is one of the core building blocks of this movement.
 
-Learn more and get involved by visiting <http://indiewebcamp.com>.
+Learn more and get involved by visiting <https://indieweb.org>.
 
 ## Changelog
+### v1.1.3 2017-03-27
+- Fixed fatal error on install
+- Improved validation of source, target, and vouch parameters
+- Enabled sending webmentions to links that have been removed from a post
+- Added hookable methods for image caching
+- Fixed handling of HTTP 410 Gone responses
+
 ### v1.1.2 2016-04-11
 - Important bug fix when parsing author name.
 
