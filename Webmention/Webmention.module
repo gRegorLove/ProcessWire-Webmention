@@ -62,9 +62,10 @@ class Webmention extends WireData implements Module, ConfigurableModule
 
 
 	/**
-	 *
+	 * Current database schema for non-fieldtype database tables
+	 * @var int SCHEMA_VERSION
 	 */
-	const SCHEMA_VERSION = 2;
+	const SCHEMA_VERSION = 3;
 
 
 	/**
@@ -76,7 +77,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	{
 		return array(
 			'fields_to_parse' => 'body',
-			'schema_version' => 1,
+			'schema_version' => self::SCHEMA_VERSION,
 		);
 	} # end method getDefaultData()
 
@@ -252,6 +253,7 @@ CREATE TABLE `{$this->className}_send_queue` (
 	`source` varchar(255) NOT NULL DEFAULT '',
 	`target` varchar(255) NOT NULL DEFAULT '',
 	`vouch` varchar(255) NOT NULL DEFAULT '',
+	`params` text,
 	`created` datetime NOT NULL,
 	`modified` datetime NOT NULL,
 	`processed` datetime DEFAULT NULL,
@@ -376,7 +378,7 @@ END;
 			{
 				$endpoint = ( $this->custom_endpoint ) ? $this->custom_endpoint : $this->pages->get('template=webmention-endpoint')->httpUrl;
 				$link = sprintf('Link: <%s>; rel="webmention"', $endpoint);
-				header($link);
+				header($link, FALSE);
 			} # end if
 
 		});
@@ -455,9 +457,16 @@ END;
 				$urls = array_merge($urls, $this->getWebmentionURLs($page->id));
 				$urls = array_unique($urls);
 
+				$params = array();
+
+				if ( $page->is_private )
+				{
+					$params = array('private' => 1);
+				}
+
 				if ( $urls )
 				{
-					$this->queueWebmentions($urls, $page->httpUrl, $page->id);
+					$this->queueWebmentions($urls, $page->httpUrl, $page->id, $params);
 				}
 
 			} # end if: checked 'send webmention'
@@ -920,14 +929,29 @@ END;
 			$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 			$this->httpResponse(202, $content_type, $message);
 		}
-		# else: incorect content-type
+		# else: incorrect content-type
 		else
 		{
 			$message = 'Webmention must be posted with Content-Type: application/x-www-form-urlencoded.';
-			$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+			$this->log->save('webmentions-received',
+				sprintf('%s|%s|%s',
+					$message,
+					$_SERVER['REMOTE_ADDR'],
+					''
+				)
+			);
 			$this->httpResponse(400, $content_type, $message);
 		} # end if
 
+		$message = 'An unexpected error occurred.';
+		$this->log->save('webmentions-received',
+			sprintf('%s|%s|%s',
+				$message,
+				$_SERVER['REMOTE_ADDR'],
+				http_build_query($this->input->post->getArray())
+			)
+		);
+		$this->httpResponse(500, $content_type, $message);
 	} # end method receiveWebmention()
 
 
@@ -964,15 +988,22 @@ END;
 	 * @param array $urls
 	 * @param string $source_url
 	 * @param int $page_id
+	 * @param array $params
 	 * @access public
 	 * @return bool
 	 */
-	public function queueWebmentions($urls, $source_url, $page_id)
+	public function queueWebmentions($urls, $source_url, $page_id, $params = array())
 	{
 		$unique_urls = array_unique($urls);
 		$source = $this->sanitizer->url($source_url);
+		$json_params = '';
 
-		$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET pages_id = ?, source = ?, target = ?, created = NOW(), modified = NOW()");
+		if ( $params )
+		{
+			$json_params = json_encode($params);
+		}
+
+		$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET pages_id = ?, source = ?, target = ?, params = ?, created = NOW(), modified = NOW()");
 
 		# loop: each unique URL
 		foreach ( $unique_urls as $url )
@@ -982,7 +1013,7 @@ END;
 			# if: only queue webmention is source and target exist
 			if ( $source && $target )
 			{
-				$result = $statement->execute(array($page_id, $source, $target));
+				$result = $statement->execute(array($page_id, $source, $target, $json_params));
 			} # end if
 
 		} # end loop
@@ -1010,10 +1041,29 @@ END;
 		# array of webmention responses
 		$responses = array();
 
+		// $Micropub = $this->modules->get('Micropub');
+		// $this->log->save('webmentions-sent', 'sendWebmention Micropub module called.');
+
 		# loop: each webmention to send
 		while ( $row = $result->fetch(PDO::FETCH_ASSOC) )
 		{
-			$responses[] = $this->sendWebmention($row['source'], $row['target']);
+			$extra_parameters =
+			$params = array();
+
+			if ( $row['params'] )
+			{
+				$params = json_decode($row['params'], TRUE);
+			}
+
+			/*
+			TODO: Make this work with Micropub optional
+			if ( isset($params['private']) )
+			{
+				$extra_parameters['code'] = $Micropub->getCode($row['source'], array('target' => $row['target']));
+			}
+			*/
+
+			$responses[] = $this->sendWebmention($row['source'], $row['target'], $extra_parameters);
 
 			$result_processed = $statement_processed->execute(array($row['id']));
 		} # end loop
@@ -2259,6 +2309,10 @@ END;
 			{
 				case 2:
 					$sql = "ALTER TABLE {$this->className}_send_queue ADD pages_id INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER id";
+				break;
+
+				case 3:
+					$sql = "ALTER TABLE {$this->className}_send_queue ADD params TEXT AFTER vouch ";
 				break;
 
 				default:
