@@ -2,6 +2,9 @@
 
 namespace GregorMorrill\ProcessWireShim;
 
+use \ProcessWire\WireHttp as PwWireHttp;
+
+
 /**
  * This is an extension of the WireHttp class to add support for multiple
  * response headers of the same type. It serves as a shim until ProcessWire core is updaed to
@@ -12,7 +15,7 @@ namespace GregorMorrill\ProcessWireShim;
 // error_reporting(E_ALL);
 // ini_set('display_errors', TRUE);
 
-class WireHttp extends \WireHttp
+class WireHttp extends PwWireHttp
 {
 
 	/**
