@@ -851,7 +851,7 @@ END;
 			}
 
 			# if: vouch not accepted
-			if ( $vouch && !$this->verifyReceivedVouch($vouch, $source) )
+			if ( $this->is_vouch_required && !$this->verifyReceivedVouch($vouch, $source) )
 			{
 				$message = 'Webmention “vouch” was not accepted.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
