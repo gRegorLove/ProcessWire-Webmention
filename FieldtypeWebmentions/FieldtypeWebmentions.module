@@ -21,6 +21,13 @@ require_once($dirname . '/WebmentionList.php');
 class FieldtypeWebmentions extends FieldtypeMulti
 {
 	/**
+	 * Current database schema fieldtype tables
+	 * @var int SCHEMA_VERSION
+	 */
+	const SCHEMA_VERSION = 1;
+
+
+	/**
 	 * Provide module information to ProcessWire
 	 * @access public
 	 * @return array
@@ -298,33 +305,54 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	 */
 	public function getDatabaseSchema(Field $field)
 	{
-		$schemaVersion = (int) $field->schemaVersion;
+		$table_exists = in_array($field->getTable(), $this->database->getTables());
+		$current_schema_version = (int) $field->schemaVersion;
+		$new_schema_version = null;
 
-		if ( !$schemaVersion )
+		# if: table exists; perform schema updates as necessary
+		if ( $table_exists )
 		{
-			$database = $this->wire('database');
-			$table = $database->escapeTable($field->getTable());
 
-			try
+			# update to schema version 1
+			if ( $current_schema_version < 1 )
 			{
-				$database->query("ALTER TABLE `$table` ADD content_plain TEXT");
-				$schemaVersion = 1;
-			}
-			catch ( Exception $e )
-			{
+				$table = $this->database->escapeTable($field->getTable());
+
+				try
+				{
+					$this->database->query("ALTER TABLE `$table` ADD content_plain TEXT");
+					$new_schema_version = 1;
+				}
+				catch ( Exception $e )
+				{
+					$this->message('Altering schema failed: %s', $e->getMessage(), Notice::log);
+				}
+
 			}
 
 		}
-
-		if ( ((int) $field->schemaVersion) < $schemaVersion )
+		# else: table doesn't exist yet; use latest schema
+		else
 		{
-			$this->message("Updating schema version of '{$field->name}' from $field->schemaVersion to $schemaVersion", Notice::log);
-			$field->schemaVersion = $schemaVersion;
+			$this->message(sprintf('Setting initial schema version of field “%s” to: %d', $field->name, self::SCHEMA_VERSION), Notice::log);
+			$field->schemaVersion = self::SCHEMA_VERSION;
+			$field->save();
+		} # end if
+
+		# if: update schema version if necessary
+		if ( $current_schema_version < $new_schema_version )
+		{
+			$message = sprintf('Updating schema version of field “%s” from: %d to: %d',
+				$field->name,
+				$current_schema_version,
+				$new_schema_version
+			);
+			$this->message($message, Notice::log);
+			$field->schemaVersion = $new_schema_version;
 			$field->save();
 		}
 
-		$schemaVersion = $field->schemaVersion;
-
+		$current_schema_version = $field->schemaVersion;
 		$schema = parent::getDatabaseSchema($field);
 
 		$schema['data'] = 'text';
@@ -339,7 +367,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$schema['is_rsvp'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
 		$schema['content'] = 'text';
 
-		if ( $schemaVersion > 0 )
+		if ( $current_schema_version > 0 )
 		{
 			$schema['content_plain'] = 'text';
 		}
@@ -751,3 +779,4 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	} # end method find()
 
 }
+
