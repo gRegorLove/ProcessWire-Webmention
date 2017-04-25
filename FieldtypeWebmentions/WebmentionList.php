@@ -1,4 +1,7 @@
-<?php
+<?php namespace ProcessWire;
+
+use DateTime;
+
 
 /**
  * ProcessWire WebmentionListInterface and WebmentionList
@@ -176,3 +179,4 @@ END;
 	} # end method getHCard()
 
 }
+

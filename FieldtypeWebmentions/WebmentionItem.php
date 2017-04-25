@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * ProcessWire FieldtypeWebmentions > WebmentionItem
@@ -213,3 +213,4 @@ class WebmentionItem extends WireData
 	} # end method isApproved()
 
 }
+

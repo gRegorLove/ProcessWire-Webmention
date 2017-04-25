@@ -1,4 +1,7 @@
-<?php
+<?php namespace ProcessWire;
+
+use DateTime;
+
 
 /**
  * Webmentions Manager

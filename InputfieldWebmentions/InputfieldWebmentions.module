@@ -1,4 +1,7 @@
-<?php
+<?php namespace ProcessWire;
+
+use DateTime;
+
 
 /**
  * ProcessWire InputfieldWebmentions
@@ -395,3 +398,4 @@ END;
 	} # end method processFormInput()
 
 }
+

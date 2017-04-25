@@ -1,4 +1,13 @@
-<?php
+<?php namespace ProcessWire;
+
+use DateTime;
+use DOMDocument;
+use PDO;
+use Mf2;
+use BarnabyWalters\Mf2 as Mf2helper;
+use GregorMorrill\ProcessWireShim;
+use ProcessWire\LazyCron;
+
 
 /**
  * Webmention module
@@ -8,9 +17,6 @@
  * @author Gregor Morrill, http://gregorlove.com
  * @see http://indiewebcamp.com/webmention
  */
-
-use BarnabyWalters\Mf2 as Mf2helper;
-use GregorMorrill\ProcessWireShim;
 
 
 $dirname = dirname(__FILE__);
@@ -1241,7 +1247,7 @@ END;
 				# if: rel=webmention link header found
 				if ( count($matches) == 2 )
 				{
-					$endpoint = \Mf2\resolveUrl($url, array_pop($matches));
+					$endpoint = Mf2\resolveUrl($url, array_pop($matches));
 
 					return array(
 						'type'		=> 'webmention',
@@ -1260,7 +1266,7 @@ END;
 		# if: webmention <link> element found
 		if ( !empty($links['webmention']) )
 		{
-			$endpoint = \Mf2\resolveUrl($url, reset($links['webmention']));
+			$endpoint = Mf2\resolveUrl($url, reset($links['webmention']));
 
 			return array(
 				'type'		=> 'webmention',
@@ -2337,3 +2343,4 @@ END;
 	} # end method updateDatabaseSchema()
 
 }
+

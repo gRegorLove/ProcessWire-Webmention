@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * ProcessWire FieldtypeWebmentions > WebmentionArray
@@ -162,3 +162,4 @@ class WebmentionArray extends PaginatedArray implements WirePaginatable
 	}
 
 }
+
