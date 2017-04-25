@@ -257,6 +257,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$sql = <<< END
 CREATE TABLE `{$this->className}_send_queue` (
 	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	`pages_id` int(10) unsigned NOT NULL DEFAULT '0',
 	`source` varchar(255) NOT NULL DEFAULT '',
 	`target` varchar(255) NOT NULL DEFAULT '',
 	`vouch` varchar(255) NOT NULL DEFAULT '',
