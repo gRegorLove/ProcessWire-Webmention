@@ -1229,7 +1229,17 @@ END;
 
 			if ( !is_array($headers['link']) )
 			{
-				$headers['link'] = array($headers['link']);
+
+				if ( strpos($headers['link'], ',') )
+				{
+					$temp_links = explode(',', $headers['link']);
+					$headers['link'] = array_map('trim', $temp_links);
+				}
+				else
+				{
+					$headers['link'] = array($headers['link']);
+				}
+
 			}
 
 			# loop: each header link
