@@ -550,6 +550,47 @@ END;
 
 
 	/**
+	 * Verify the source links to the target
+	 * @param string $html source HTML, already retrieved during webmention processing
+	 * @param string $source source URL, used to resolve relative links
+	 * @param string $target
+	 * @access public
+	 * @return bool
+	 */
+	public function verifyLinksTo($html, $source, $target)
+	{
+		libxml_use_internal_errors(true);
+		$dom = new DOMDocument('1.0', 'UTF-8');
+		$dom->loadHTML($html);
+		$dom->preserveWhiteSpace = false;
+
+		# get all <a> DOMElements
+		$a_elements = $dom->getElementsByTagName('a');
+
+		# loop: each <a> DOMElement
+		foreach ( $a_elements as $a )
+		{
+
+			# if: <a> element has href attribute
+			if ( $a->hasAttribute('href') )
+			{
+				$url = Mf2\resolveUrl($source, $a->getAttribute('href'));
+
+				# if: url matches target; verified
+				if ( $target == $url )
+				{
+					return true;
+				} # end if
+
+			} # end if
+
+		} # end loop
+
+		return false;
+	} # end method verifyLinksTo()
+
+
+	/**
 	 * This method processes a webmention
 	 * @param WebmentionItem $webmention
 	 * @access public
@@ -633,20 +674,8 @@ END;
 			return WebmentionItem::actionProcess;
 		} # end if
 
-		$target_base_url = parse_url($webmention->target_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->target_url, PHP_URL_HOST);
-		$target_pattern = '#(?i)' . $target_base_url . '(?-i)' . preg_replace('#' . $target_base_url . '#i', '', $webmention->target_url) . '#';
-
-		# if: target URL not found in source URL
-		if ( preg_match($target_pattern, $response) != 1 )
-		{
-			$webmention->content = $webmention->name = sprintf('The URL %s was not found in %s', $webmention->target_url, $webmention->source_url);
-			$webmention->status = WebmentionItem::statusError;
-			$webmention->visibility = WebmentionItem::visibilityPrivate;
-
-			return WebmentionItem::actionProcess;
-		}
-		# else: parse the source for microformats
-		else
+		# if: target URL linked from source
+		if ( $this->verifyLinksTo($response, $webmention->source_url, $webmention->target_url) )
 		{
 			$webmention->status = WebmentionItem::statusApproved;
 
@@ -678,6 +707,15 @@ END;
 			unset($parsed_content);
 			unset($entry);
 			unset($author);
+		}
+		# else:
+		else
+		{
+			$webmention->content = $webmention->name = sprintf('The URL %s was not found in %s', $webmention->target_url, $webmention->source_url);
+			$webmention->status = WebmentionItem::statusError;
+			$webmention->visibility = WebmentionItem::visibilityPrivate;
+
+			return WebmentionItem::actionProcess;
 		} # end if
 
 		return WebmentionItem::actionProcess;
