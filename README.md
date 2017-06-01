@@ -24,6 +24,8 @@ Installing the core module named “Webmention” will automatically install the
 
 This module will attempt to add a template and page named “Webmention Endpoint” if the template does not exist already. The default location of this endpoint is http://example.com/webmention-endpoint
 
+A template file is required so the endpoint URL does not return a 404 error. A sample template file is included with in the `Webmention/extras/site/templates/` directory. Copy that into your `site/templates/` directory then check to make sure the endpoint URL works and does not return a 404 error.
+
 After installing the module, create a new field of type “Webmentions” and add it to the template(s) you want to be able to support webmentions.
 
 ## Sending Webmentions
