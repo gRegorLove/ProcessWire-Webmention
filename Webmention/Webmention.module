@@ -1700,7 +1700,7 @@ END;
 			# if: rsvp
 			if ( $rsvp )
 			{
-				$webmention->set('rsvp', 1);
+				$webmention->set('is_rsvp', 1);
 			}
 
 			$webmention->set('name', Mf2helper\getPlaintext($entry, 'name'));
