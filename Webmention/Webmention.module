@@ -78,6 +78,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		return array(
 			'fields_to_parse' => 'body',
 			'http_https_same' => 1,
+			'verbose_logging' => 1,
 			'schema_version' => self::SCHEMA_VERSION,
 		);
 	} # end method getDefaultData()
@@ -164,6 +165,16 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$field->label = 'Treat http and https as the same';
 		$field->checked = ( $data['http_https_same'] ) ? 'checked' : '';
 		$field->description = 'Incoming links http://example.com and https://example.com are the same page';
+		$field->columnWidth = 50;
+
+		$inputfields->add($field);
+
+		# Verbose logging
+		$field = wire('modules')->get('InputfieldCheckbox');
+		$field->name = 'verbose_logging';
+		$field->label = 'Enable verbose logging';
+		$field->checked = ( $data['verbose_logging'] ) ? 'checked' : '';
+		$field->description = 'Verbose logging includes webmention endpoint discovery, sending, and recieving. Regular logging will only include errors.';
 		$field->columnWidth = 50;
 
 		$inputfields->add($field);
@@ -684,7 +695,11 @@ END;
 		# if: webmention source is HTTP 410
 		else if ( $http_code == 410 )
 		{
+
+			if ( $this->verbose_logging )
+			{
 			$this->log->save('webmentions-received', sprintf('Source URL %s is HTTP 410. Webmention %d will be deleted.', $webmention->source_url, $webmention->id));
+			}
 
 			return WebmentionItem::actionDelete;
 		} # end if
@@ -1009,7 +1024,12 @@ END;
 			$page->setOutputFormatting($outputFormatting);
 
 			$message = sprintf('Webmention from %s queued for processing.', parse_url($source, PHP_URL_HOST));
+
+			if ( $this->verbose_logging )
+			{
 			$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+			}
+
 			$this->httpResponse(202, $content_type, $message);
 		}
 		# else: incorrect content-type
@@ -1166,7 +1186,7 @@ END;
 	{
 		$http = new WireHttp();
 
-		$endpoint_data = NULL;
+		$endpoint_data = null;
 
 		# if: URL starts with http:// or https://
 		if ( strpos($target, 'http://') === 0 || strpos($target, 'https://') === 0 )
@@ -1177,8 +1197,13 @@ END;
 		# if: no endpoint found
 		if ( !$endpoint_data )
 		{
+
+			if ( $this->verbose_logging )
+			{
 			$this->log->save('webmentions-sent', sprintf('No endpoint found for %s.', $target));
-			return NULL;
+			}
+
+			return null;
 		}
 
 		# if: vouch available for this target
@@ -1214,7 +1239,10 @@ END;
 			$http->setHeader('Accept', 'application/json, application/xml, text/html');
 		}
 
+		if ( $this->verbose_logging )
+		{
 		$this->log->save('webmentions-sent', sprintf('Initiate sending %s from %s to %s.', $endpoint_data['type'], $source, $target));
+		}
 
 		$response = $http->post($endpoint, $data);
 		$http_code = $http->getHttpCode();
