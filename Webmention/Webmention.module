@@ -562,7 +562,20 @@ END;
 
 		foreach ( $webmentions as $webmention )
 		{
-			$this->processWebmention($webmention);
+			$action = $this->processWebmention($webmention);
+
+			# if: delete the webmention
+			if ( $action == WebmentionItem::actionDelete )
+			{
+
+				if ( $field->type->deleteWebmention($webmention->getPage(), $field, $webmention) )
+				{
+					$this->log->save('webmentions-received', sprintf('Deleted webmention %d.', $webmention->id));
+					$this->message(sprintf($this->_('Deleted webmention #%d'), $webmention->id));
+				}
+
+				continue;
+			}
 
 			$this->saveWebmention($webmention);
 		}
