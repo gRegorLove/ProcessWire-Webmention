@@ -84,8 +84,8 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 				$published = new DateTime($webmention->published);
 				$display_published = $published->format('F j, Y g:ia');
 
-				$author_url = $webmention->author_url;
-				$author_name = htmlspecialchars($webmention->author_name);
+				$author_name = ( $webmention->author_name ) ? htmlspecialchars($webmention->author_name) : '';
+				$display_author = ( $webmention->author_url ) ? sprintf('<a href="%s">%s</a>', $webmention->author_url, $author_name) : $author_name;
 				$webmention_hostname = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($webmention->url, PHP_URL_HOST));
 
 				$display_avatar = '';
@@ -141,7 +141,7 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 
 				<div class="content">
 
-					<p> <strong><a href="{$author_url}">{$author_name}</a></strong> on <a href="{$webmention->url}">{$webmention_hostname}</a> </p>
+					<p> <strong>{$display_author}</strong> on <a href="{$webmention->url}">{$webmention_hostname}</a> </p>
 
 					<p> {$webmention_content} </p>
 
