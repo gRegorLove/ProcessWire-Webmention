@@ -121,7 +121,7 @@ class WebmentionList extends Wire implements WebmentionListInterface
 		$h_card = $this->getHCard($webmention);
 
 		$author_link = sprintf('<a href="%s">%s</a>',
-			htmlencode(filter_var($webmention->author_url, FILTER_VALIDATE_URL)),
+			$this->sanitizer->url($webmention->author_url),
 			htmlspecialchars($webmention->author_name)
 		);
 
@@ -167,11 +167,9 @@ END;
 	{
 		$h_card = '';
 
-		$author_photo = strip_tags($webmention->author_photo);
-
 		$h_card = sprintf('<a href="%s" class="p-author h-card"><img src="%s" alt="%s" title="%3$s" class="u-photo" /></a> ',
-			htmlencode(filter_var($webmention->author_url, FILTER_VALIDATE_URL)),
-			$author_photo,
+			$this->sanitizer->url($webmention->author_url),
+			$this->sanitizer->url($webmention->author_photo),
 			strip_tags($webmention->author_name)
 		);
 
