@@ -356,15 +356,15 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$schema = parent::getDatabaseSchema($field);
 
 		$schema['data'] = 'text';
-		$schema['id'] = "int unsigned NOT null auto_increment";
-		$schema['md5key'] = "varchar(32) NOT null DEFAULT ''";
-		$schema['source_url'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['target_url'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['vouch_url'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['type'] = "enum('reply','mention','legacy') NOT null DEFAULT 'mention'";
-		$schema['is_like'] = "tinyint(1) unsigned NOT null DEFAULT '0'";
-		$schema['is_repost'] = "tinyint(1) unsigned NOT null DEFAULT '0'";
-		$schema['is_rsvp'] = "tinyint(1) unsigned NOT null DEFAULT '0'";
+		$schema['id'] = "int unsigned NOT NULL auto_increment";
+		$schema['md5key'] = "varchar(32) NOT NULL DEFAULT ''";
+		$schema['source_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['target_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['vouch_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['type'] = "enum('reply','mention','legacy') NOT NULL DEFAULT 'mention'";
+		$schema['is_like'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
+		$schema['is_repost'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
+		$schema['is_rsvp'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
 		$schema['content'] = 'text';
 
 		if ( $current_schema_version > 0 )
@@ -372,20 +372,20 @@ class FieldtypeWebmentions extends FieldtypeMulti
 			$schema['content_plain'] = 'text';
 		}
 
-		$schema['url'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['url'] = "varchar(255) NOT NULL DEFAULT ''";
 		$schema['name'] = 'text';
-		$schema['author_name'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['author_photo'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['author_logo'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['author_url'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['author_email'] = "varchar(255) NOT null DEFAULT ''";
-		$schema['published'] = "timestamp NOT null DEFAULT CURRENT_TIMESTAMP";
-		$schema['published_offset'] = "tinyint(1) NOT null DEFAULT '0'";
-		$schema['updated'] = "timestamp NOT null DEFAULT '0000-00-00 00:00:00'";
-		$schema['updated_offset'] = "tinyint(1) NOT null DEFAULT '0'";
-		$schema['status'] = "tinyint(3) NOT null DEFAULT '0'";
-		$schema['visibility'] = "tinyint(3) NOT null DEFAULT '0'";
-		$schema['created'] = "timestamp NOT null DEFAULT '0000-00-00 00:00:00'";
+		$schema['author_name'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_photo'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_logo'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['author_email'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['published'] = "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP";
+		$schema['published_offset'] = "tinyint(1) NOT NULL DEFAULT '0'";
+		$schema['updated'] = "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'";
+		$schema['updated_offset'] = "tinyint(1) NOT NULL DEFAULT '0'";
+		$schema['status'] = "tinyint(3) NOT NULL DEFAULT '0'";
+		$schema['visibility'] = "tinyint(3) NOT NULL DEFAULT '0'";
+		$schema['created'] = "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'";
 		$schema['deleted'] = "timestamp null DEFAULT null";
 
 		$schema['keys']['primary'] = "PRIMARY KEY (`id`)";
