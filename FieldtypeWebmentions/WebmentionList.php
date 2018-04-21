@@ -47,7 +47,7 @@ class WebmentionList extends Wire implements WebmentionListInterface
 	protected $options = array(
 		'headline' => '',
 		'encoding' => 'UTF-8',
-		'admin' => FALSE,
+		'admin' => false,
 	);
 
 

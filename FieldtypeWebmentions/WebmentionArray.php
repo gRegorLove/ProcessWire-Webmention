@@ -12,13 +12,13 @@ class WebmentionArray extends PaginatedArray implements WirePaginatable
 	/**
 	 * Page that owns these webmentions, required to use the renderForm() or getWebmentionForm() methods.
 	 */
-	protected $page = NULL;
+	protected $page = null;
 
 
 	/**
 	 * Field object associated with this WebmentionArray
 	 */
-	protected $field = NULL;
+	protected $field = null;
 
 
 	/**
@@ -53,11 +53,11 @@ class WebmentionArray extends PaginatedArray implements WirePaginatable
 				$item->setField($this->field);
 			}
 
-			return TRUE;
+			return true;
 		}
 		else
 		{
-			return FALSE;
+			return false;
 		}
 
 	} # end method isValidItem()

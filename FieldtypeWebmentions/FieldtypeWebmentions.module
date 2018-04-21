@@ -68,7 +68,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$webmentionArray = new WebmentionArray();
 		$webmentionArray->setPage($page);
 		$webmentionArray->setField($field);
-		$webmentionArray->setTrackChanges(TRUE);
+		$webmentionArray->setTrackChanges(true);
 		return $webmentionArray;
 	} # end method getBlankValue()
 
@@ -119,7 +119,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !$inputfield )
 		{
-			return NULL;
+			return null;
 		}
 
 		$inputfield->class = $this->className();
@@ -196,7 +196,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$webmention->set($key, $val);
 			}
 
-			$webmention->resetTrackChanges(TRUE);
+			$webmention->resetTrackChanges(true);
 			$webmentionArray->add($webmention);
 		}
 
@@ -205,7 +205,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 			$webmentionArray->sort('-updated');
 		}
 
-		$webmentionArray->resetTrackChanges(TRUE);
+		$webmentionArray->resetTrackChanges(true);
 
 		return $webmentionArray;
 	} # end method ___wakeupValue()
@@ -356,15 +356,15 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$schema = parent::getDatabaseSchema($field);
 
 		$schema['data'] = 'text';
-		$schema['id'] = "int unsigned NOT NULL auto_increment";
-		$schema['md5key'] = "varchar(32) NOT NULL DEFAULT ''";
-		$schema['source_url'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['target_url'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['vouch_url'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['type'] = "enum('reply','mention','legacy') NOT NULL DEFAULT 'mention'";
-		$schema['is_like'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
-		$schema['is_repost'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
-		$schema['is_rsvp'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
+		$schema['id'] = "int unsigned NOT null auto_increment";
+		$schema['md5key'] = "varchar(32) NOT null DEFAULT ''";
+		$schema['source_url'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['target_url'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['vouch_url'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['type'] = "enum('reply','mention','legacy') NOT null DEFAULT 'mention'";
+		$schema['is_like'] = "tinyint(1) unsigned NOT null DEFAULT '0'";
+		$schema['is_repost'] = "tinyint(1) unsigned NOT null DEFAULT '0'";
+		$schema['is_rsvp'] = "tinyint(1) unsigned NOT null DEFAULT '0'";
 		$schema['content'] = 'text';
 
 		if ( $current_schema_version > 0 )
@@ -372,21 +372,21 @@ class FieldtypeWebmentions extends FieldtypeMulti
 			$schema['content_plain'] = 'text';
 		}
 
-		$schema['url'] = "varchar(255) NOT NULL DEFAULT ''";
+		$schema['url'] = "varchar(255) NOT null DEFAULT ''";
 		$schema['name'] = 'text';
-		$schema['author_name'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['author_photo'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['author_logo'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['author_url'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['author_email'] = "varchar(255) NOT NULL DEFAULT ''";
-		$schema['published'] = "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP";
-		$schema['published_offset'] = "tinyint(1) NOT NULL DEFAULT '0'";
-		$schema['updated'] = "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'";
-		$schema['updated_offset'] = "tinyint(1) NOT NULL DEFAULT '0'";
-		$schema['status'] = "tinyint(3) NOT NULL DEFAULT '0'";
-		$schema['visibility'] = "tinyint(3) NOT NULL DEFAULT '0'";
-		$schema['created'] = "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'";
-		$schema['deleted'] = "timestamp NULL DEFAULT NULL";
+		$schema['author_name'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['author_photo'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['author_logo'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['author_url'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['author_email'] = "varchar(255) NOT null DEFAULT ''";
+		$schema['published'] = "timestamp NOT null DEFAULT CURRENT_TIMESTAMP";
+		$schema['published_offset'] = "tinyint(1) NOT null DEFAULT '0'";
+		$schema['updated'] = "timestamp NOT null DEFAULT '0000-00-00 00:00:00'";
+		$schema['updated_offset'] = "tinyint(1) NOT null DEFAULT '0'";
+		$schema['status'] = "tinyint(3) NOT null DEFAULT '0'";
+		$schema['visibility'] = "tinyint(3) NOT null DEFAULT '0'";
+		$schema['created'] = "timestamp NOT null DEFAULT '0000-00-00 00:00:00'";
+		$schema['deleted'] = "timestamp null DEFAULT null";
 
 		$schema['keys']['primary'] = "PRIMARY KEY (`id`)";
 		$schema['keys']['pages_id_sort'] = "KEY `pages_id_sort` (`pages_id`, `sort`)";
@@ -409,7 +409,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !$page->id || !$field->id )
 		{
-			return FALSE;
+			return false;
 		}
 
 		$allItems = $page->get($field->name);
@@ -418,12 +418,12 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !$allItems )
 		{
-			return FALSE;
+			return false;
 		}
 
 		if ( !$allItems->isChanged() && !$page->isChanged($field->name) )
 		{
-			return TRUE;
+			return true;
 		}
 
 		$itemsRemoved = $allItems->getItemsRemoved();
@@ -468,7 +468,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !count($items) )
 		{
-			return TRUE;
+			return true;
 		}
 
 		$values = $this->sleepValue($page, $field, $items);
@@ -515,14 +515,14 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$sql .= 'sort=' . ++$maxSort;
 			}
 
-			if ( FALSE === $database->exec($sql) )
+			if ( false === $database->exec($sql) )
 			{
 				$this->error("Error saving item $value[id] in savePageField", Notice::log);
 			}
 
 		}
 
-		return TRUE;
+		return true;
 	} # end method ___savePageField()
 
 
@@ -606,14 +606,14 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 
 	/**
-	 * For FieldtypeMulti interface, return NULL to indicate that the field is not auto-joinable
+	 * For FieldtypeMulti interface, return null to indicate that the field is not auto-joinable
 	 * @param Field $field
 	 * @param DatabaseQuerySelect $query
 	 * @access public
 	 */
 	public function getLoadQueryAutojoin(Field $field, DatabaseQuerySelect $query)
 	{
-		return NULL;
+		return null;
 	} # end method getLoadQueryAutojoin()
 
 
@@ -643,7 +643,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		$limit = 10;
 		$start = 0;
-		$desc = TRUE;
+		$desc = true;
 		$sort = 'created';
 		$database = $this->wire('database');
 		$table = $database->escapeTable($field->getTable());
@@ -758,7 +758,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$webmentionPages[$page->id] = $page;
 			}
 
-			$webmention->resetTrackChanges(TRUE);
+			$webmention->resetTrackChanges(true);
 			$webmentions->add($webmention);
 
 			if ( $page->id )
