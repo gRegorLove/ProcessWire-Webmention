@@ -4,8 +4,8 @@
  *
  * Provides webmention support for ProcessWire
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 use DateTime;
@@ -737,7 +737,7 @@ END;
 		 * that means this is likely a notification rather than
 		 * a mention or reply. Do nothing for now until more experimentation
 		 * is done with update/delete and reply-contexts.
-		 * Discussion: https://indiewebcamp.com/reply-context#CRUD
+		 * Discussion: https://indieweb.org/reply-context#CRUD
 		 */
 
 		$source_base_url = parse_url($webmention->source_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->source_url, PHP_URL_HOST);
@@ -2230,7 +2230,7 @@ END;
 	 * @param string $vouch_url
 	 * @param string $source_url
 	 * @access public
-	 * @see https://indiewebcamp.com/Vouch
+	 * @see https://indieweb.org/Vouch
 	 */
 	public function verifyReceivedVouch($vouch_url, $source_url)
 	{
@@ -2286,7 +2286,7 @@ END;
 	 * @param string $url
 	 * @access public
 	 * @return bool|string
-	 * @see https://indiewebcamp.com/Vouch
+	 * @see https://indieweb.org/Vouch
 	 */
 	public function findVouchFor($url)
 	{

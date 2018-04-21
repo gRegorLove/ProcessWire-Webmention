@@ -9,8 +9,8 @@ use PDO;
  *
  * A field that stores webmentions for a single Page.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 $dirname = dirname(__FILE__);

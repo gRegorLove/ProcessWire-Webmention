@@ -3,8 +3,8 @@
 /**
  * ProcessWire FieldtypeWebmentions > WebmentionArray
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 class WebmentionArray extends PaginatedArray implements WirePaginatable

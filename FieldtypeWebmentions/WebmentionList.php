@@ -1,8 +1,4 @@
 <?php namespace ProcessWire;
-
-use DateTime;
-
-
 /**
  * ProcessWire WebmentionListInterface and WebmentionList
  *
@@ -13,9 +9,12 @@ use DateTime;
  * Typically you would iterate through the field and generate your own output. But if you just need
  * something simple, or are testing, then this may fit your needs.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
+
+use DateTime;
+
 
 /**
  * WebmentionListInterface defines an interface for WebmentionLists.

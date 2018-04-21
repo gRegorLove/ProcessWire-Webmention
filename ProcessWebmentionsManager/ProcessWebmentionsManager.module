@@ -10,8 +10,8 @@ use DateTime;
  *
  * Borrowed heavily from the Comments Manager module.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 class ProcessWebmentionsManager extends Process
@@ -51,7 +51,7 @@ class ProcessWebmentionsManager extends Process
 			'version' => 112,
 			'author' => 'gRegor Morrill',
 			'summary' => 'Manage webmentions in your site outside of the page editor.',
-			'href' => 'http://gregorlove.com',
+			'href' => 'https://gregorlove.com',
 			'singular'	=> TRUE,
 			'autoload'	=> TRUE,
 			'icon' => 'comments',

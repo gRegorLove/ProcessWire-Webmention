@@ -8,8 +8,8 @@ use DateTime;
  *
  * An Inputfield for handling administration of webmentions.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 class InputfieldWebmentions extends Inputfield implements InputfieldItemList
