@@ -83,8 +83,10 @@ class WebmentionList extends Wire implements WebmentionListInterface
 
 			if ( !$this->options['admin'] )
 			{
+				$is_not_approved = ($webmention->status != WebmentionItem::statusApproved);
+				$is_not_public = ($webmention->visibility != WebmentionItem::visibilityPublic);
 
-				if ( $webmention->status != WebmentionItem::statusApproved )
+				if ( $is_not_approved || $is_not_public )
 				{
 					continue;
 				}
@@ -159,7 +161,7 @@ END;
 
 	/**
 	 * This method returns the h-card for a webmention
-	 * @param array
+	 * @param WebmentionItem $webmention
 	 * @access public
 	 * @return
 	 */
