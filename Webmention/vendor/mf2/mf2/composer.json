@@ -14,13 +14,16 @@
         "php": ">=5.4.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "3.7.*"
+        "phpunit/phpunit": "4.8.*",
+        "phpdocumentor/phpdocumentor": "v2.8.4",
+        "mf2/tests": "@dev"
     },
     "autoload": {
         "files": ["Mf2/Parser.php"]
     },
-    "license": "CC0",
+    "license": "CC0-1.0",
     "suggest": {
-        "barnabywalters/mf-cleaner": "To more easily handle the canonical data php-mf2 gives you"
+        "barnabywalters/mf-cleaner": "To more easily handle the canonical data php-mf2 gives you",
+        "masterminds/html5": "Alternative HTML parser for PHP, for better HTML5 support."
     }
 }

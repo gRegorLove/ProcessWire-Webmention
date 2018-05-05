@@ -165,6 +165,7 @@ Learn more and get involved by visiting <https://indieweb.org>.
 ## Changelog
 ### v2.0.0 2018-05-??
 - Update to support ProcessWire 3.x
+- Update php-mf2 library to version 0.4.x
 - Improve verification of source linking to target
 - Fix delete webmention bug
 - Fix webmention author display in admin
