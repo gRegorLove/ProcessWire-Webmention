@@ -58,7 +58,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			'title'		=> 'Webmention',
 			'version'	=> 113,
 			'summary'	=> 'Webmention is a simple way to automatically notify any URL when you link to it on your site. From the receiver’s perspective, it is a way to request notification when other sites link to it.',
-			'href'		=> 'https://www.webmention.net',
+			'href'		=> 'https://webmention.net/',
 			'singular'	=> true,
 			'autoload'	=> true,
 			'installs'	=> array('FieldtypeWebmentions', 'InputfieldWebmentions', 'ProcessWebmentionsManager'),
@@ -80,13 +80,14 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	 */
 	public static function getDefaultData()
 	{
-		return array(
+		return [
 			'fields_to_parse' => 'body',
 			'http_https_same' => 1,
 			'verbose_logging' => 1,
+			'process_referers' => 1,
 			'is_vouch_required' => 0,
 			'schema_version' => self::SCHEMA_VERSION,
-		);
+		];
 	} # end method getDefaultData()
 
 
@@ -180,7 +181,18 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$field->name = 'verbose_logging';
 		$field->label = 'Enable verbose logging';
 		$field->checked = ( $data['verbose_logging'] ) ? 'checked' : '';
-		$field->description = 'Verbose logging includes webmention endpoint discovery, sending, and recieving. Regular logging will only include errors.';
+		$field->description = 'Verbose logging includes webmention endpoint discovery, sending, and receiving. Regular logging will only include errors.';
+		$field->columnWidth = 50;
+
+		$inputfields->add($field);
+
+		# Process referer URLs
+		$field = wire('modules')->get('InputfieldCheckbox');
+		$field->name = 'process_referers';
+		$field->value = 0;
+		$field->checked = ( $data['process_referers'] ) ? 'checked' : '';
+		$field->label = 'Process referer URLs for potential vouches';
+		$field->description = 'If a referring URL links back to your site, it may be used as a vouch when sending webmentions';
 		$field->columnWidth = 50;
 
 		$inputfields->add($field);
@@ -366,7 +378,11 @@ END;
 			$this->updateDatabaseSchema();
 		}
 
-		$this->addHook('LazyCron::every30Seconds', $this, 'processReferer');
+		if ( $this->process_referers )
+		{
+			$this->addHook('LazyCron::every30Seconds', $this, 'processReferer');
+		}
+
 		$this->addHook('LazyCron::every30Seconds', $this, 'sendWebmentions');
 		$this->addHook('LazyCron::everyDay', $this, 'processVouchWhitelist');
 
@@ -398,7 +414,10 @@ END;
 		 */
 		$this->addHookBefore('PageRender::renderPage', function($event) {
 
-			$this->recordReferer();
+			if ( $this->process_referers )
+			{
+				$this->recordReferer();
+			}
 
 			$page = $event->page;
 			$this->findFieldtypeWebmentions($page);
@@ -552,7 +571,6 @@ END;
 
 		if ( !$count )
 		{
-			$this->log->save('webmentions-received', 'No webmention fields found when running processWebmentions');
 			return false;
 		}
 
@@ -793,6 +811,11 @@ END;
 			$webmention->content = $webmention->name = sprintf('The URL %s was not found in %s', $webmention->target_url, $webmention->source_url);
 			$webmention->status = WebmentionItem::statusError;
 			$webmention->visibility = WebmentionItem::visibilityPrivate;
+
+			if ( $this->verbose_logging )
+			{
+				$this->log->save('webmentions-received', sprintf('Source %s does not link to target.', $webmention->source_url));
+			}
 
 			return WebmentionItem::actionProcess;
 		} # end if
@@ -1164,9 +1187,6 @@ END;
 		# array of webmention responses
 		$responses = array();
 
-		// $Micropub = $this->modules->get('Micropub');
-		// $this->log->save('webmentions-sent', 'sendWebmention Micropub module called.');
-
 		# loop: each webmention to send
 		while ( $row = $result->fetch(PDO::FETCH_ASSOC) )
 		{
@@ -1178,13 +1198,11 @@ END;
 				$params = json_decode($row['params'], true);
 			}
 
-			/*
-			TODO: Make this work with Micropub optional
+			/*TODO: Make this work with Micropub optional
 			if ( isset($params['private']) )
 			{
 				$extra_parameters['code'] = $Micropub->getCode($row['source'], array('target' => $row['target']));
-			}
-			*/
+			}*/
 
 			$responses[] = $this->sendWebmention($row['source'], $row['target'], $extra_parameters);
 
@@ -1266,24 +1284,17 @@ END;
 
 		$response = $http->post($endpoint, $data);
 		$http_code = $http->getHttpCode();
+		$http_code_class = substr($http_code, 0, 1);
 
-		/*
-		if ( !$response )
-		{
-			$this->log->save('webmentions-sent', sprintf('Error sending webmention - %s: %s', $http_code, $http->getError()));
-			return;
-		}
-		*/
-
-		# if: successful webmention
-		if ( in_array($http_code, array('200', '201', '202')) )
+		# if: 2xx and 3xx HTTP responses considered successful
+		if ( in_array($http_code_class, array(2, 3)) )
 		{
 			$message = sprintf('Sent webmention for %s successfully to %s.', $target, $endpoint);
 		}
 		# else: error
 		else
 		{
-			$message = sprintf('Error sending webmention for %s to %s.', $target, $endpoint);
+			$message = sprintf('Error sending webmention for %s to %s. Response was HTTP %s', $target, $endpoint, $http_code);
 		} # end if
 
 		$this->log->save('webmentions-sent', sprintf('%s|%s|%s|%s', $message, $http_code, http_build_query($data), $response));
@@ -2178,48 +2189,65 @@ END;
 
 		$row = $result->fetch(PDO::FETCH_ASSOC);
 
-		$http = new WireHttp();
-		$response = $http->get($row['url']);
+		$statement_processed = $this->database->prepare("UPDATE {$this->className}_referer_queue SET processed = NOW() WHERE id = ?");
 
-		libxml_use_internal_errors(true);
-		$dom = new DOMDocument('1.0', 'UTF-8');
-		$dom->loadHTML($response);
-		$dom->preserveWhiteSpace = false;
+		$http = new WireHttp();;
+		$response = $http->get( $this->sanitizer->url($row['url']) );
+		$http_code = $http->getHttpCode();
 
-		# get <a> DOMElements
-		$a_elements = $dom->getElementsByTagName('a');
-
-		$statement_vouches = $this->database->prepare("INSERT INTO {$this->className}_vouches SET domain = ?, url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
-
-		$ignore_domains = array(
-			'brid.gy',
-			'google.com',
-			'yahoo.com',
-			'bing.com',
-			't.co',
-		);
-
-		# loop: each <a> DOMElement
-		foreach ( $a_elements as $a )
+		# if: referer URL is HTTP 200 OK
+		if ( $http_code == 200 )
 		{
-			$rel = $a->getAttribute('rel');
-			$href = $a->getAttribute('href');
+			libxml_use_internal_errors(true);
+			$dom = new DOMDocument('1.0', 'UTF-8');
+			$dom->loadHTML($response);
+			$dom->preserveWhiteSpace = false;
 
-			$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($row['url'], PHP_URL_HOST));
+			# get <a> DOMElements
+			$a_elements = $dom->getElementsByTagName('a');
 
-			# if: domain is not ignored, link does not have rel=nofollow, and links back
-			if ( !in_array($domain, $ignore_domains) && ($rel != 'nofollow') && strpos($href, $this->config->httpHost) !== false )
+			$statement_vouches = $this->database->prepare("INSERT INTO {$this->className}_vouches SET domain = ?, url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
+
+			$ignore_domains = [
+				'brid.gy',
+				'google.com',
+				'yahoo.com',
+				'bing.com',
+				't.co',
+			];
+
+			# loop: each <a> DOMElement
+			foreach ( $a_elements as $a )
 			{
-				$url = $this->sanitizer->url($row['url']);
-				$result = $statement_vouches->execute(array($domain, $url));
+				$rel = $a->getAttribute('rel');
+				$href = $a->getAttribute('href');
 
-				break;
-			} # end if
+				$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($row['url'], PHP_URL_HOST));
 
-		} # end loop
+				# if: domain is not ignored, link does not have rel=nofollow, and links back
+				if ( !in_array($domain, $ignore_domains) && ($rel != 'nofollow') && strpos($href, $this->config->httpHost) !== false )
+				{
+					$url = $this->sanitizer->url($row['url']);
+					$statement_vouches->execute(array($domain, $url));
 
-		$statement = $this->database->prepare("UPDATE {$this->className}_referer_queue SET processed = NOW() WHERE id = ?");
-		$result = $statement->execute(array($row['id']));
+					break;
+				} # end if
+
+			} # end loop
+
+		}
+		# else: non-200 response
+		else
+		{
+
+			if ( $this->verbose_logging )
+			{
+				$this->log->save('webmentions-referers', sprintf('Referer URL %s returned HTTP %s', $row['url'], $http_code));
+			}
+
+		} # end if
+
+		$statement_processed->execute(array($row['id']));
 
 		return;
 	} # end method processReferer()
