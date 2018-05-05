@@ -164,9 +164,11 @@ Learn more and get involved by visiting <https://indieweb.org>.
 
 ## Changelog
 ### v2.0.0 2018-05-??
+- Update to support ProcessWire 3.x
 - Improve verification of source linking to target
 - Fix delete webmention bug
-- Fix webmention author display
+- Fix webmention author display in admin
+- Fix WebmentionList render() method
 
 ### v1.1.3 2017-03-27
 - Fixed fatal error on install

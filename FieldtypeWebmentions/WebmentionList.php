@@ -168,10 +168,26 @@ END;
 	{
 		$h_card = '';
 
-		$h_card = sprintf('<a href="%s" class="p-author h-card"><img src="%s" alt="%s" title="%3$s" class="u-photo" /></a> ',
+		$display_avatar = '';
+
+		# if: display author avatar
+		if ( $webmention->author_photo )
+		{
+			$display_avatar .= sprintf('<img src="%s" alt="" class="u-photo" />', $webmention->author_photo);
+		}
+		else if ( $webmention->author_email )
+		{
+			$display_avatar .= sprintf('<img src="https://www.gravatar.com/avatar/%s?s=%s&d=mm&r=pg" alt="" />',
+				md5(strtolower(trim($webmention->author_email))),
+				50
+			);
+		}
+
+		$h_card = sprintf('<a href="%s" class="p-author h-card">%s</a> ',
 			$this->sanitizer->url($webmention->author_url),
-			$this->sanitizer->url($webmention->author_photo),
-			strip_tags($webmention->author_name)
+			$display_avatar
+			#$this->sanitizer->url($webmention->author_photo),
+			#strip_tags($webmention->author_name)
 		);
 
 		return $h_card;
