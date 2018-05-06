@@ -4,7 +4,7 @@
 
 [Webmention](https://webmention.net) is a simple way to notify any URL when you link to it on your site. From the receiver’s perspective, it’s a way to request notifications when other sites link to it.
 
-This module is for ProcessWire 3.x. If you are using ProcessWire 2.x, please use [this release](#) instead.
+This module is for ProcessWire 3.x. If you are using ProcessWire 2.x, please use [this release](https://github.com/gRegorLove/ProcessWire-Webmention/releases/tag/v2.0.0-pw2) instead.
 
 Starting with version 1.1.2, this is a stable release that covers webmention sending, receiving, parsing, and display. It includes an admin interface for browsing and managing all webmentions. It also includes support for the Webmention Vouch extension.
 
@@ -163,7 +163,7 @@ The IndieWeb movement is about owning your data. It encourages you to create and
 Learn more and get involved by visiting <https://indieweb.org>.
 
 ## Changelog
-### v2.0.0 2018-05-??
+### v2.0.0 2018-05-06
 - Update to support ProcessWire 3.x
 - Update php-mf2 library to version 0.4.x
 - Improve verification of source linking to target
