@@ -1,4 +1,4 @@
-<?php namespace ProcessWire;
+<?php
 /**
  * Webmention endpoint template file
  *

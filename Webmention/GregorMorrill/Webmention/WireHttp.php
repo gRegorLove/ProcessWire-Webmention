@@ -7,7 +7,7 @@
  * For more information: https://github.com/ryancramerdesign/ProcessWire/pull/1704
  */
 
-class WireHttp extends \ProcessWire\WireHttp
+class WireHttp extends \WireHttp
 {
 
 	/**

@@ -1,4 +1,4 @@
-<?php namespace ProcessWire;
+<?php
 /**
  * Webmention module
  *
@@ -8,14 +8,8 @@
  * @see https://webmention.net/
  */
 
-use DateTime;
-use DateTimeZone;
-use DOMDocument;
-use PDO;
-use Mf2;
 use BarnabyWalters\Mf2 as Mf2helper;
 use GregorMorrill\ProcessWireShim;
-use ProcessWire\LazyCron;
 
 
 $dirname = dirname(__FILE__);

@@ -1,4 +1,4 @@
-<?php namespace ProcessWire;
+<?php
 /**
  * ProcessWire WebmentionListInterface and WebmentionList
  *
@@ -12,8 +12,6 @@
  * @author Gregor Morrill, https://gregorlove.com
  * @see https://webmention.net/
  */
-
-use DateTime;
 
 
 /**

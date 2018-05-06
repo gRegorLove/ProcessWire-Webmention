@@ -1,5 +1,4 @@
-<?php namespace ProcessWire;
-
+<?php
 /**
  * ProcessWire FieldtypeWebmentions > WebmentionItem
  *

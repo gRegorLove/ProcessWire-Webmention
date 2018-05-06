@@ -1,9 +1,4 @@
-<?php namespace ProcessWire;
-
-use DateTime;
-use PDO;
-
-
+<?php
 /**
  * ProcessWire Webmentions Fieldtype
  *
