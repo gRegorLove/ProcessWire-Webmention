@@ -18,7 +18,7 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 	{
 		return array(
 			'title'		=> 'Webmentions',
-			'version'	=> 112,
+			'version'	=> 200,
 			'summary'	=> 'Input field for webmentions.',
 			'requires'	=> 'FieldtypeWebmentions',
 		);

@@ -4,7 +4,7 @@
 
 [Webmention](https://webmention.net) is a simple way to notify any URL when you link to it on your site. From the receiver’s perspective, it’s a way to request notifications when other sites link to it.
 
-This module is for ProcessWire 3.x. If you are using ProcessWire 2.x, please use [this release](#) instead.
+This module is for ProcessWire 2.x. If you are using ProcessWire 3.x, please use [the modules directory release](https://modules.processwire.com/modules/webmention/) instead.
 
 Starting with version 1.1.2, this is a stable release that covers webmention sending, receiving, parsing, and display. It includes an admin interface for browsing and managing all webmentions. It also includes support for the Webmention Vouch extension.
 
