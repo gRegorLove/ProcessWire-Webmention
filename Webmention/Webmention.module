@@ -283,7 +283,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$this->modules->saveModuleConfigData($this, self::getDefaultData());
 
 		$sql = <<< END
-CREATE TABLE `{$this->className}_send_queue` (
+CREATE TABLE IF NOT EXISTS `{$this->className}_send_queue` (
 	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 	`pages_id` int(10) unsigned NOT NULL DEFAULT '0',
 	`source` varchar(255) NOT NULL DEFAULT '',
@@ -294,12 +294,12 @@ CREATE TABLE `{$this->className}_send_queue` (
 	`modified` datetime NOT NULL,
 	`processed` datetime DEFAULT NULL,
 	PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4
 END;
 		$this->database->query($sql);
 
 		$sql = <<< END
-CREATE TABLE `{$this->className}_referer_queue` (
+CREATE TABLE IF NOT EXISTS `{$this->className}_referer_queue` (
 	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 	`url` varchar(255) NOT NULL DEFAULT '',
 	`created` datetime NOT NULL,
@@ -307,12 +307,12 @@ CREATE TABLE `{$this->className}_referer_queue` (
 	`processed` datetime DEFAULT NULL,
 	PRIMARY KEY (`id`),
 	UNIQUE KEY `url` (`url`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4
 END;
 		$this->database->query($sql);
 
 		$sql = <<< END
-CREATE TABLE `{$this->className}_vouches` (
+CREATE TABLE IF NOT EXISTS `{$this->className}_vouches` (
 	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 	`domain` varchar(255) NOT NULL DEFAULT '',
 	`url` varchar(255) NOT NULL DEFAULT '',
@@ -322,7 +322,7 @@ CREATE TABLE `{$this->className}_vouches` (
 	PRIMARY KEY (`id`),
 	UNIQUE KEY `url` (`url`),
 	KEY `domain` (`domain`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM AUTO_INCREMENT=889 DEFAULT CHARSET=utf8
 END;
 		$this->database->query($sql);
 	} # end method ___install()
