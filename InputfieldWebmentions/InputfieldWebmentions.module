@@ -1,12 +1,15 @@
-<?php
+<?php namespace ProcessWire;
+
+use DateTime;
+
 
 /**
  * ProcessWire InputfieldWebmentions
  *
  * An Inputfield for handling administration of webmentions.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 class InputfieldWebmentions extends Inputfield implements InputfieldItemList
@@ -19,7 +22,7 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 	{
 		return array(
 			'title'		=> 'Webmentions',
-			'version'	=> 112,
+			'version'	=> 200,
 			'summary'	=> 'Input field for webmentions.',
 			'requires'	=> 'FieldtypeWebmentions',
 		);
@@ -338,7 +341,7 @@ END;
 		# loop: each webmention
 		foreach ( $webmentions as $webmention )
 		{
-			$is_updated = FALSE;
+			$is_updated = false;
 
 			$page = $webmention->getPage();
 			$field = $webmention->getField();
@@ -352,7 +355,7 @@ END;
 			# if: visibility has changed
 			if ( $webmention->visibility != $visibility )
 			{
-				$is_updated = TRUE;
+				$is_updated = true;
 				$webmention->set('visibility', $visibility);
 				$this->message(sprintf($this->_('Updated visibility for webmention #%d'), $webmention->id));
 			} # end if
@@ -365,7 +368,7 @@ END;
 				if ( $action == WebmentionItem::actionProcess )
 				{
 					$action = $webmention_module->processWebmention($webmention);
-					$is_updated = ( $action ) ? TRUE : FALSE;
+					$is_updated = ( $action ) ? true : false;
 				} # end if
 
 				# if: delete the webmention
@@ -395,3 +398,4 @@ END;
 	} # end method processFormInput()
 
 }
+

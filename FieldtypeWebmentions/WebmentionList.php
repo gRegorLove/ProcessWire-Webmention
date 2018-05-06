@@ -1,5 +1,4 @@
-<?php
-
+<?php namespace ProcessWire;
 /**
  * ProcessWire WebmentionListInterface and WebmentionList
  *
@@ -10,9 +9,12 @@
  * Typically you would iterate through the field and generate your own output. But if you just need
  * something simple, or are testing, then this may fit your needs.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
+
+use DateTime;
+
 
 /**
  * WebmentionListInterface defines an interface for WebmentionLists.
@@ -45,7 +47,7 @@ class WebmentionList extends Wire implements WebmentionListInterface
 	protected $options = array(
 		'headline' => '',
 		'encoding' => 'UTF-8',
-		'admin' => FALSE,
+		'admin' => false,
 	);
 
 
@@ -80,8 +82,10 @@ class WebmentionList extends Wire implements WebmentionListInterface
 
 			if ( !$this->options['admin'] )
 			{
+				$is_not_approved = ($webmention->status != WebmentionItem::statusApproved);
+				$is_not_public = ($webmention->visibility != WebmentionItem::visibilityPublic);
 
-				if ( $webmention->status != WebmentionItem::statusApproved )
+				if ( $is_not_approved || $is_not_public )
 				{
 					continue;
 				}
@@ -118,7 +122,7 @@ class WebmentionList extends Wire implements WebmentionListInterface
 		$h_card = $this->getHCard($webmention);
 
 		$author_link = sprintf('<a href="%s">%s</a>',
-			htmlencode(filter_var($webmention->author_url, FILTER_VALIDATE_URL)),
+			$this->sanitizer->url($webmention->author_url),
 			htmlspecialchars($webmention->author_name)
 		);
 
@@ -156,7 +160,7 @@ END;
 
 	/**
 	 * This method returns the h-card for a webmention
-	 * @param array
+	 * @param WebmentionItem $webmention
 	 * @access public
 	 * @return
 	 */
@@ -164,15 +168,30 @@ END;
 	{
 		$h_card = '';
 
-		$author_photo = strip_tags($webmention->author_photo);
+		$display_avatar = '';
 
-		$h_card = sprintf('<a href="%s" class="p-author h-card"><img src="%s" alt="%s" title="%3$s" class="u-photo" /></a> ',
-			htmlencode(filter_var($webmention->author_url, FILTER_VALIDATE_URL)),
-			$author_photo,
-			strip_tags($webmention->author_name)
+		# if: display author avatar
+		if ( $webmention->author_photo )
+		{
+			$display_avatar .= sprintf('<img src="%s" alt="" class="u-photo" />', $webmention->author_photo);
+		}
+		else if ( $webmention->author_email )
+		{
+			$display_avatar .= sprintf('<img src="https://www.gravatar.com/avatar/%s?s=%s&d=mm&r=pg" alt="" />',
+				md5(strtolower(trim($webmention->author_email))),
+				50
+			);
+		}
+
+		$h_card = sprintf('<a href="%s" class="p-author h-card">%s</a> ',
+			$this->sanitizer->url($webmention->author_url),
+			$display_avatar
+			#$this->sanitizer->url($webmention->author_photo),
+			#strip_tags($webmention->author_name)
 		);
 
 		return $h_card;
 	} # end method getHCard()
 
 }
+

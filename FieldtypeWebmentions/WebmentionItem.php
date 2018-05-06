@@ -1,10 +1,10 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * ProcessWire FieldtypeWebmentions > WebmentionItem
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 class WebmentionItem extends WireData
@@ -85,15 +85,15 @@ class WebmentionItem extends WireData
 		$this->set('author_photo', '');
 		$this->set('author_logo', '');
 		$this->set('author_url', '');
-		$this->set('published', NULL);
+		$this->set('published', null);
 		$this->set('published_offset', 0);
-		$this->set('updated', NULL);
+		$this->set('updated', null);
 		$this->set('updated_offset', 0);
 		$this->set('status', self::statusPending);
 		$this->set('visibility', self::visibilityPublic);
 		$this->set('sort', 0);
 		$this->set('microformats', '');
-		$this->set('created', NULL);
+		$this->set('created', null);
 		$this->prevStatus = self::statusPending;
 	} # end method __construct()
 
@@ -125,7 +125,7 @@ class WebmentionItem extends WireData
 			case 'author_photo':
 			case 'author_logo':
 			case 'author_url':
-				$value = wire('sanitizer')->url($value, array('allowRelative' => FALSE));
+				$value = wire('sanitizer')->url($value, array('allowRelative' => false));
 			break;
 		}
 
@@ -213,3 +213,4 @@ class WebmentionItem extends WireData
 	} # end method isApproved()
 
 }
+

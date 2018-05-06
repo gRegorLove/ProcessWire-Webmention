@@ -1,4 +1,7 @@
-<?php
+<?php namespace ProcessWire;
+
+use DateTime;
+
 
 /**
  * Webmentions Manager
@@ -7,8 +10,8 @@
  *
  * Borrowed heavily from the Comments Manager module.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 class ProcessWebmentionsManager extends Process
@@ -45,12 +48,12 @@ class ProcessWebmentionsManager extends Process
 	{
 		return array(
 			'title' => 'Webmentions Manager',
-			'version' => 112,
+			'version' => 200,
 			'author' => 'gRegor Morrill',
 			'summary' => 'Manage webmentions in your site outside of the page editor.',
-			'href' => 'http://gregorlove.com',
-			'singular'	=> TRUE,
-			'autoload'	=> TRUE,
+			'href' => 'https://gregorlove.com',
+			'singular'	=> true,
+			'autoload'	=> true,
 			'icon' => 'comments',
 			'requires'	=> 'FieldtypeWebmentions',
 			'permission' => 'webmentions-manager',
@@ -123,7 +126,7 @@ class ProcessWebmentionsManager extends Process
 			$field = reset($fields);
 			$url = sprintf('%slist/%s/all/', $this->wire('page')->url, $field->name);
 
-			$this->wire('session')->redirect($url, FALSE);
+			$this->wire('session')->redirect($url, false);
 			return;
 		} # end if
 
@@ -171,7 +174,7 @@ class ProcessWebmentionsManager extends Process
 		if ( empty($status) || ($status != 'all' && !in_array($status, $this->statuses)) )
 		{
 			$url = sprintf('%slist/%s/all/', $this->wire('page')->url, $field->name);
-			$this->wire('session')->redirect($url, FALSE);
+			$this->wire('session')->redirect($url, false);
 		}
 
 		$this->breadcrumb('../', $field->getLabel());
@@ -534,3 +537,4 @@ END;
 	} # end method ___install()
 
 }
+

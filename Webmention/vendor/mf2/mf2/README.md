@@ -10,7 +10,11 @@ Instead of having a hard-coded list of all the different microformats, it follow
 
 There are two ways of installing php-mf2. I **highly recommend** installing php-mf2 using [Composer](http://getcomposer.org). The rest of the documentation assumes that you have done so.
 
-To install using Composer, run `./composer.phar require mf2/mf2:~0.3`
+To install using Composer, run
+
+```
+composer require mf2/mf2
+```
 
 If you can’t or don’t want to use Composer, then php-mf2 can be installed the old way by downloading [`/Mf2/Parser.php`](https://raw.githubusercontent.com/indieweb/php-mf2/master/Mf2/Parser.php), adding it to your project and requiring it from files you want to call its functions from, like this:
 
@@ -23,12 +27,27 @@ require_once 'Mf2/Parser.php';
 $mf = Mf2\fetch('https://waterpigs.co.uk');
 ```
 
+It is recommended to install the HTML5 parser for proper handling of HTML5 elements. Using composer, run
+
+```
+composer require masterminds/html5
+```
+
+If this library is added to your project, the php-mf2 parser will use it automatically instead of the built-in HTML parser.
+
+
 ### Signed Code Verification
 
-From v0.2.9, php-mf2’s version tags are signed using GPG by barnaby@waterpigs.co.uk. This allows you to cryptographically verify that you’re using the right code. To do so you will need my key — you don’t have it, get it like this:
+From v0.2.9, php-mf2’s version tags are signed using GPG, allowing you to cryptographically verify that you’re using code which hasn’t been tampered with. To verify the code you will need the GPG keys for one of the people in the list of code signers:
+
+* Barnaby Walters barnaby@waterpigs.co.uk 1C00 430B 19C6 B426 922F E534 BEF8 CE58 118A D524
+* Aaron Parecki aaron@parecki.com F384 12A1 55FB 8B15 B7DD 8E07 4225 2B5E 65CE 0ADD
+* Bear bear@bear.im 0A93 9BA7 8203 FCBC 58A9 E8B5 9D1E 0661 8EE5 B4D8
+
+To import the relevant keys into your GPG keychain, execute the following command:
 
 ```bash
-gpg --recv-keys 7D49834B0416CFA3
+gpg --recv-keys 1C00430B19C6B426922FE534BEF8CE58118AD524 F38412A155FB8B15B7DD8E0742252B5E65CE0ADD 0A939BA78203FCBC58A9E8B59D1E06618EE5B4D8
 ```
 
 Then verify the installed files like this:
@@ -36,7 +55,7 @@ Then verify the installed files like this:
 ```bash
 # in your project root
 cd vendor/mf2/mf2
-git tag -v v0.2.9
+git tag -v v0.3.0
 ```
 
 If nothing went wrong, you should see the tag commit message, ending something like this:
@@ -61,7 +80,7 @@ php-mf2 is PSR-0 autoloadable, so simply include Composer’s auto-generated aut
 
 ## Examples
 
-### Fetching microformats from a page
+### Fetching microformats from a URL
 
 ```php
 <?php
@@ -77,7 +96,7 @@ use Mf2;
 $mf = Mf2\fetch('http://microformats.org');
 
 foreach ($mf['items'] as $microformat) {
-	echo "A {$microformat['type'][0]} called {$microformat['properties']['name'][0]}\n";
+  echo "A {$microformat['type'][0]} called {$microformat['properties']['name'][0]}\n";
 }
 
 ```
@@ -89,21 +108,24 @@ Here we demonstrate parsing of microformats2 implied property parsing, where an 
 ```php
 <?php
 
-$output = Mf2\parse('<a class="h-card" href="https://waterpigs.co.uk/">Barnaby Walters</a>');
+$html = '<a class="h-card" href="https://waterpigs.co.uk/">Barnaby Walters</a>';
+$output = Mf2\parse($html, 'https://waterpigs.co.uk/');
 ```
 
 `$output` is a canonical microformats2 array structure like:
 
 ```json
 {
-	"items": [{
-		"type": ["h-card"],
-		"properties": {
-			"name": ["Barnaby Walters"],
-			"url": ["https://waterpigs.co.uk/"]
-		}
-	}],
-	"rels": {}
+  "items": [
+    {
+      "type": ["h-card"],
+      "properties": {
+        "name": ["Barnaby Walters"],
+        "url": ["https://waterpigs.co.uk/"]
+      }
+    }
+  ],
+  "rels": {}
 }
 ```
 
@@ -113,32 +135,34 @@ Note that, whilst the property prefixes are stripped, the prefix of the `h-*` cl
 
 ### Parsing a document with relative URLs
 
-Most of the time you’ll be getting your input HTML from a URL. You should pass that URL as the second parameter to `Mf2\parse()` so that any relative URLs in the document can be resolved. For example, say you got the following HTML from `http://example.org`:
+Most of the time you’ll be getting your input HTML from a URL. You should pass that URL as the second parameter to `Mf2\parse()` so that any relative URLs in the document can be resolved. For example, say you got the following HTML from `http://example.org/post/1`:
 
 ```html
 <div class="h-card">
-	<h1 class="p-name">Mr. Example</h1>
-	<img class="u-photo" alt="" src="photo.png" />
+  <h1 class="p-name">Mr. Example</h1>
+  <img class="u-photo" alt="" src="/photo.png" />
 </div>
 ```
 
 Parsing like this:
 
 ```php
-$output = Mf2\parse($html, 'http://example.org');
+$output = Mf2\parse($html, 'http://example.org/post/1');
 ```
 
 will result in the following output, with relative URLs made absolute:
 
 ```json
 {
-	"items": [{
-		"type": ["h-card"],
-		"properties": {
-			"photo": ["http://example.org/photo.png"]
-		}
-	}],
-	"rels": {}
+  "items": [{
+    "type": ["h-card"],
+    "properties": {
+      "name": ["Mr. Example"],
+      "photo": ["http://example.org/photo.png"]
+    }
+  }],
+  "rels": {},
+  "rel-urls": {}
 }
 ```
 
@@ -157,14 +181,19 @@ parsing will result in the following keys:
 
 ```json
 {
-	"items": [],
-	"rels": {
-		"me": ["https://twitter.com/barnabywalters"]
-	},
-	"alternates": [{
-		"url": "http://example.com/notes.atom",
-		"rel": "etc"
-	}]
+  "items": [],
+  "rels": {
+    "me": ["https://twitter.com/barnabywalters"]
+  },
+  "rel-urls": {
+    "https://twitter.com/barnabywalters": {
+      "text": "Me on twitter",
+      "rels": ["me"]
+    },
+    "http://example.com/notes.atom": {
+      "rels": ["alternate","etc"]
+    }
+  }
 }
 ```
 
@@ -189,7 +218,7 @@ To learn what the HTTP status code for any request was, or learn more about the 
 
 $mf = Mf2\fetch('http://waterpigs.co.uk/this-page-doesnt-exist', true, $curlInfo);
 if ($curlInfo['http_code'] == '404') {
-	// This page doesn’t exist.
+  // This page doesn’t exist.
 }
 
 ```
@@ -216,9 +245,55 @@ $parser->parseFromId('parse-from-here'); // returns a document with only the h-c
 
 $elementIWant = $parser->query('an xpath query')[0];
 
-$parser->parse(true, $elementIWant); // returns a document with only mfs under the selected element
+$parser->parse(true, $elementIWant); // returns a document with only the Microformats under the selected element
 
 ```
+
+### Experimental Language Parsing
+
+There is still [ongoing brainstorming](http://microformats.org/wiki/microformats2-parsing-brainstorming#Parse_language_information) around how HTML language attributes should be added to the parsed result. In order to use this feature, you will need to set a flag to opt in.
+
+```php
+$doc = '<div class="h-entry" lang="sv" id="postfrag123">
+  <h1 class="p-name">En svensk titel</h1>
+  <div class="e-content" lang="en">With an <em>english</em> summary</div>
+  <div class="e-content">Och <em>svensk</em> huvudtext</div>
+</div>';
+$parser = new Mf2\Parser($doc);
+$parser->lang = true;
+$result = $parser->parse();
+```
+
+```json
+{
+  "items": [
+    {
+      "type": ["h-entry"],
+      "properties": {
+        "name": ["En svensk titel"],
+        "content": [
+          {
+            "html": "With an <em>english</em> summary",
+            "value": "With an english summary",
+            "lang": "en"
+          },
+          {
+            "html": "Och <em>svensk</em> huvudtext",
+            "value": "Och svensk huvudtext",
+            "lang": "sv"
+          }
+        ]
+      },
+      "lang": "sv"
+    }
+  ],
+  "rels": {},
+  "rel-urls": {}
+}
+```
+
+Note that this option is still considered experimental and in development, and the parsed output may change between minor releases.
+
 
 ### Generating output for JSON serialization with JSON-mode
 
@@ -266,7 +341,7 @@ Pull requests very welcome, please try to maintain stylistic, structural and nam
 4. Run PHPUnit with `./vendor/bin/phpunit`
 5. Make your changes
 6. Add PHPUnit tests for your changes, either in an existing test file if suitable, or a new one
-7. Make sure your tests pass (`./vendor/bin/phpunit`), preferably using both PHP 5.3 and 5.4
+7. Make sure your tests pass (`./vendor/bin/phpunit`), using 5.4+
 8. Go to your fork of the repo on github.com and make a pull request, preferably with a short summary, detailed description and references to issues/parsing specs as appropriate
 9. Bask in the warm feeling of having contributed to a piece of free software
 
@@ -274,11 +349,97 @@ Pull requests very welcome, please try to maintain stylistic, structural and nam
 
 There are currently two separate test suites: one, in `tests/Mf2`, is written in phpunit, containing many microformats parsing examples as well as internal parser tests and regression tests for specific issues over php-mf2’s history. Run it with `./vendor/bin/phpunit`.
 
-The other, in `tests/test-suite`, is a custom test harness which hooks up php-mf2 to the cross-platform microformats test suite. Each test consists of a HTML file and a corresponding JSON file, and the suite can be run with `php ./tests/test-suite/test-suite.php`.
+The other, in `tests/test-suite`, is a custom test harness which hooks up php-mf2 to the cross-platform [microformats test suite](https://github.com/microformats/tests). To run these tests you must first install the tests with `./composer.phar install`. Each test consists of a HTML file and a corresponding JSON file, and the suite can be run with `php ./tests/test-suite/test-suite.php`.
 
 Currently php-mf2 passes the majority of it’s own test case, and a good percentage of the cross-platform tests. Contributors should ALWAYS test against the PHPUnit suite to ensure any changes don’t negatively impact php-mf2, and SHOULD run the cross-platform suite, especially if you’re changing parsing behaviour.
 
 ### Changelog
+
+#### v0.4.3
+
+2018-03-29
+
+If the [masterminds/html5](https://github.com/Masterminds/html5-php) HTML5 parser is available, the Mf2 parser will use that instead of the built-in HTML parser. This enables proper handling of HTML5 elements such as `<article>`.
+
+To include the HTML5 parser in your project, run:
+
+```
+composer require masterminds/html5
+```
+
+#### v0.4.2
+
+2018-03-29
+
+Fixes:
+
+* [#165](https://github.com/indieweb/php-mf2/pull/165) - Prevents inadvertently adding whitespace to the html value
+* [#158](https://github.com/indieweb/php-mf2/issues/158) - Allows numbers in vendor prefixed names
+* [#160](https://github.com/indieweb/php-mf2/issues/160) - Ignores class names with consecutive dashes
+* [#159](https://github.com/indieweb/php-mf2/issues/159) - Remove duplicate values from type and rels arrays
+* [#162](https://github.com/indieweb/php-mf2/pull/162) - Improved rel attribute parsing
+
+Backcompat:
+
+* [#157](https://github.com/indieweb/php-mf2/issues/157) - Parse `rel=tag` as `p-category` for hEntry and hReview
+
+#### v0.4.1
+
+2018-03-15
+
+Fixes:
+
+* [#153](https://github.com/indieweb/php-mf2/issues/153) - Fixes parsed timestamps authored with a Z timezone offset
+* [#151](https://github.com/indieweb/php-mf2/issues/151) - Adds back "value" of nested microformats when no matching property exists
+
+
+#### v0.4.0
+
+2018-03-13
+
+Breaking changes:
+
+* [#125](https://github.com/indieweb/php-mf2/pull/125) - Add `rel-urls` to parsed result. Removes `alternates` by default but still available behind a feature flag.
+* [#142](https://github.com/indieweb/php-mf2/pull/142) - Reduce instances of implied `p-name`. See Microformats issue [#6](https://github.com/microformats/microformats2-parsing/issues/6). This means it is now possible for the parsed result to *not* have a `name` property, whereas before there was always a `name` property on an object. Make sure consuming code can handle an object without a name now.
+
+Fixes:
+
+* [#124](https://github.com/indieweb/php-mf2/pull/124) - Fix for experimental lang parsing
+* [#127](https://github.com/indieweb/php-mf2/issues/127) - Fix for parsing `h-*` class names containing invalid characters.
+* [#131](https://github.com/indieweb/php-mf2/pull/131) - Improved `dt-` parsing. Issues [#126](https://github.com/indieweb/php-mf2/issues/126) and [#115](https://github.com/indieweb/php-mf2/issues/115).
+* [#130](https://github.com/indieweb/php-mf2/issues/130) - Fix for implied properties with empty attributes.
+* [#135](https://github.com/indieweb/php-mf2/issues/135) - Trim leading and tailing whitespace from HTML value as well as text value.
+* [#137](https://github.com/indieweb/php-mf2/issues/137) - Fix backcompat hfeed parsing.
+* [#134](https://github.com/indieweb/php-mf2/issues/134) - Fix `rel=bookmark` backcompat parsing.
+* [#116](https://github.com/indieweb/php-mf2/issues/116) - Fix backcompat parsing for `summary` property in `hreview`
+* [#149](https://github.com/indieweb/php-mf2/issues/149) - Fix for datetime parsing, no longer tries to interpret the value and passes through instead
+
+#### v0.3.2
+
+2017-05-27
+
+* Fixed how the Microformats tests repo is loaded via composer
+* Moved experimental language parsing feature behind an opt-in flag
+* [#121](https://github.com/indieweb/php-mf2/pull/121) Fixed language detection to support parsing of HTML fragments
+
+#### v0.3.1
+
+2017-05-24
+
+* [#89](https://github.com/indieweb/php-mf2/issues/89) - Fixed parsing empty `img alt=""` attributes
+* [#91](https://github.com/indieweb/php-mf2/issues/91) - Ignore rel values from HTML tags that don't allow rel values
+* [#57](https://github.com/indieweb/php-mf2/issues/57) - Implement hAtom rel=bookmark backcompat
+* [#94](https://github.com/indieweb/php-mf2/pull/94) - Fixed HTML output when parsing e-* properties
+* [#97](https://github.com/indieweb/php-mf2/pull/97) - Experimental language parsing
+* [#88](https://github.com/indieweb/php-mf2/issues/88) - Fix for implied photo parsing
+* [#102](https://github.com/indieweb/php-mf2/pull/102) - Ignore classes with numbers or capital letters
+* [#111](https://github.com/indieweb/php-mf2/pull/111) - Improved backcompat parsing
+* [#106](https://github.com/indieweb/php-mf2/issues/106) - Send `Accept: text/html` header when using the `fetch` method
+* [#114](https://github.com/indieweb/php-mf2/issues/114) - Parse `poster` attribute for `video` tags
+* [#118](https://github.com/indieweb/php-mf2/issues/118) - Fixes parsing elements with missing attributes
+* Tests now use [microformats/tests](https://github.com/microformats/tests) repo
+
+Many thanks to @gRegorLove for the major overhaul of the backcompat parsing!
 
 #### v0.3.0
 
@@ -372,8 +533,8 @@ Many thanks to @aaronpk, @gRegorLove and @kylewm for contributions, @aaronpk and
 * `Mf2\parse()` function added to simplify the most common case of just parsing some HTML
 * Updated e-* property parsing rules to match mf2 parsing spec — instead of producing inconsistent HTML content, it now produces dictionaries like <pre><code>
 {
-	"html": "<b>The Content</b>",
-	"value: "The Content"
+  "html": "<b>The Content</b>",
+  "value: "The Content"
 }
 </code></pre>
 * Removed `htmlSafe` options as new e-* parsing rules make them redundant

@@ -1,12 +1,16 @@
-<?php
+<?php namespace ProcessWire;
+
+use DateTime;
+use PDO;
+
 
 /**
  * ProcessWire Webmentions Fieldtype
  *
  * A field that stores webmentions for a single Page.
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
 $dirname = dirname(__FILE__);
@@ -17,6 +21,13 @@ require_once($dirname . '/WebmentionList.php');
 class FieldtypeWebmentions extends FieldtypeMulti
 {
 	/**
+	 * Current database schema fieldtype tables
+	 * @var int SCHEMA_VERSION
+	 */
+	const SCHEMA_VERSION = 1;
+
+
+	/**
 	 * Provide module information to ProcessWire
 	 * @access public
 	 * @return array
@@ -25,7 +36,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	{
 		return array(
 			'title'		=> __('Webmentions', __FILE__),
-			'version'	=> 111,
+			'version'	=> 200,
 			'summary'	=> __('Field that stores webmentions for a single Page', __FILE__),
 		);
 	} # end method getModuleInfo()
@@ -57,7 +68,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$webmentionArray = new WebmentionArray();
 		$webmentionArray->setPage($page);
 		$webmentionArray->setField($field);
-		$webmentionArray->setTrackChanges(TRUE);
+		$webmentionArray->setTrackChanges(true);
 		return $webmentionArray;
 	} # end method getBlankValue()
 
@@ -108,7 +119,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !$inputfield )
 		{
-			return NULL;
+			return null;
 		}
 
 		$inputfield->class = $this->className();
@@ -185,7 +196,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$webmention->set($key, $val);
 			}
 
-			$webmention->resetTrackChanges(TRUE);
+			$webmention->resetTrackChanges(true);
 			$webmentionArray->add($webmention);
 		}
 
@@ -194,7 +205,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 			$webmentionArray->sort('-updated');
 		}
 
-		$webmentionArray->resetTrackChanges(TRUE);
+		$webmentionArray->resetTrackChanges(true);
 
 		return $webmentionArray;
 	} # end method ___wakeupValue()
@@ -294,33 +305,54 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	 */
 	public function getDatabaseSchema(Field $field)
 	{
-		$schemaVersion = (int) $field->schemaVersion;
+		$table_exists = in_array($field->getTable(), $this->database->getTables());
+		$current_schema_version = (int) $field->schemaVersion;
+		$new_schema_version = null;
 
-		if ( !$schemaVersion )
+		# if: table exists; perform schema updates as necessary
+		if ( $table_exists )
 		{
-			$database = $this->wire('database');
-			$table = $database->escapeTable($field->getTable());
 
-			try
+			# update to schema version 1
+			if ( $current_schema_version < 1 )
 			{
-				$database->query("ALTER TABLE `$table` ADD content_plain TEXT");
-				$schemaVersion = 1;
-			}
-			catch ( Exception $e )
-			{
+				$table = $this->database->escapeTable($field->getTable());
+
+				try
+				{
+					$this->database->query("ALTER TABLE `$table` ADD content_plain TEXT");
+					$new_schema_version = 1;
+				}
+				catch ( Exception $e )
+				{
+					$this->message('Altering schema failed: %s', $e->getMessage(), Notice::log);
+				}
+
 			}
 
 		}
-
-		if ( ((int) $field->schemaVersion) < $schemaVersion )
+		# else: table doesn't exist yet; use latest schema
+		else
 		{
-			$this->message("Updating schema version of '{$field->name}' from $field->schemaVersion to $schemaVersion", Notice::log);
-			$field->schemaVersion = $schemaVersion;
+			$this->message(sprintf('Setting initial schema version of field “%s” to: %d', $field->name, self::SCHEMA_VERSION), Notice::log);
+			$field->schemaVersion = self::SCHEMA_VERSION;
+			$field->save();
+		} # end if
+
+		# if: update schema version if necessary
+		if ( $current_schema_version < $new_schema_version )
+		{
+			$message = sprintf('Updating schema version of field “%s” from: %d to: %d',
+				$field->name,
+				$current_schema_version,
+				$new_schema_version
+			);
+			$this->message($message, Notice::log);
+			$field->schemaVersion = $new_schema_version;
 			$field->save();
 		}
 
-		$schemaVersion = $field->schemaVersion;
-
+		$current_schema_version = $field->schemaVersion;
 		$schema = parent::getDatabaseSchema($field);
 
 		$schema['data'] = 'text';
@@ -335,7 +367,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$schema['is_rsvp'] = "tinyint(1) unsigned NOT NULL DEFAULT '0'";
 		$schema['content'] = 'text';
 
-		if ( $schemaVersion > 0 )
+		if ( $current_schema_version > 0 )
 		{
 			$schema['content_plain'] = 'text';
 		}
@@ -354,7 +386,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 		$schema['status'] = "tinyint(3) NOT NULL DEFAULT '0'";
 		$schema['visibility'] = "tinyint(3) NOT NULL DEFAULT '0'";
 		$schema['created'] = "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'";
-		$schema['deleted'] = "timestamp NULL DEFAULT NULL";
+		$schema['deleted'] = "timestamp null DEFAULT null";
 
 		$schema['keys']['primary'] = "PRIMARY KEY (`id`)";
 		$schema['keys']['pages_id_sort'] = "KEY `pages_id_sort` (`pages_id`, `sort`)";
@@ -377,7 +409,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !$page->id || !$field->id )
 		{
-			return FALSE;
+			return false;
 		}
 
 		$allItems = $page->get($field->name);
@@ -386,12 +418,12 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !$allItems )
 		{
-			return FALSE;
+			return false;
 		}
 
 		if ( !$allItems->isChanged() && !$page->isChanged($field->name) )
 		{
-			return TRUE;
+			return true;
 		}
 
 		$itemsRemoved = $allItems->getItemsRemoved();
@@ -436,7 +468,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		if ( !count($items) )
 		{
-			return TRUE;
+			return true;
 		}
 
 		$values = $this->sleepValue($page, $field, $items);
@@ -483,14 +515,14 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$sql .= 'sort=' . ++$maxSort;
 			}
 
-			if ( FALSE === $database->exec($sql) )
+			if ( false === $database->exec($sql) )
 			{
 				$this->error("Error saving item $value[id] in savePageField", Notice::log);
 			}
 
 		}
 
-		return TRUE;
+		return true;
 	} # end method ___savePageField()
 
 
@@ -574,14 +606,14 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 
 	/**
-	 * For FieldtypeMulti interface, return NULL to indicate that the field is not auto-joinable
+	 * For FieldtypeMulti interface, return null to indicate that the field is not auto-joinable
 	 * @param Field $field
 	 * @param DatabaseQuerySelect $query
 	 * @access public
 	 */
 	public function getLoadQueryAutojoin(Field $field, DatabaseQuerySelect $query)
 	{
-		return NULL;
+		return null;
 	} # end method getLoadQueryAutojoin()
 
 
@@ -611,7 +643,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 
 		$limit = 10;
 		$start = 0;
-		$desc = TRUE;
+		$desc = true;
 		$sort = 'created';
 		$database = $this->wire('database');
 		$table = $database->escapeTable($field->getTable());
@@ -726,7 +758,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 				$webmentionPages[$page->id] = $page;
 			}
 
-			$webmention->resetTrackChanges(TRUE);
+			$webmention->resetTrackChanges(true);
 			$webmentions->add($webmention);
 
 			if ( $page->id )
@@ -747,3 +779,4 @@ class FieldtypeWebmentions extends FieldtypeMulti
 	} # end method find()
 
 }
+

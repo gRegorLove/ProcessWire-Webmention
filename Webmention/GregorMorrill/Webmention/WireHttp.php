@@ -1,6 +1,4 @@
-<?php
-
-namespace GregorMorrill\ProcessWireShim;
+<?php namespace GregorMorrill\ProcessWireShim;
 
 /**
  * This is an extension of the WireHttp class to add support for multiple
@@ -9,10 +7,7 @@ namespace GregorMorrill\ProcessWireShim;
  * For more information: https://github.com/ryancramerdesign/ProcessWire/pull/1704
  */
 
-// error_reporting(E_ALL);
-// ini_set('display_errors', TRUE);
-
-class WireHttp extends \WireHttp
+class WireHttp extends \ProcessWire\WireHttp
 {
 
 	/**
@@ -61,12 +56,7 @@ class WireHttp extends \WireHttp
 			}
 		}
 
-		/*
-		if(self::debug && count($responseHeader)) {
-			$this->message("httpCode: $this->httpCode, message: $message");
-			$this->message("<pre>" . print_r($this->getResponseHeader(true), true) . "</pre>", Notice::allowMarkup);
-		}
-		*/
 	}
 
 }
+

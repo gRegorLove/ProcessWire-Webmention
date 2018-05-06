@@ -21,7 +21,7 @@
         "suggest": {
             "mf2/mf2": "To parse microformats2 structures from (X)HTML"
         },
-        "time": "2014-10-06 23:11:15",
+        "time": "2014-10-06T23:11:15+00:00",
         "type": "library",
         "installation-source": "dist",
         "autoload": {
@@ -43,29 +43,32 @@
     },
     {
         "name": "mf2/mf2",
-        "version": "v0.3.0",
-        "version_normalized": "0.3.0.0",
+        "version": "v0.4.3",
+        "version_normalized": "0.4.3.0",
         "source": {
             "type": "git",
             "url": "https://github.com/indieweb/php-mf2.git",
-            "reference": "4fb2eb5365cbc0fd2e0c26ca748777d6c2539763"
+            "reference": "5c056e81f48b71130dab98de755683bb2b7e7615"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/indieweb/php-mf2/zipball/4fb2eb5365cbc0fd2e0c26ca748777d6c2539763",
-            "reference": "4fb2eb5365cbc0fd2e0c26ca748777d6c2539763",
+            "url": "https://api.github.com/repos/indieweb/php-mf2/zipball/5c056e81f48b71130dab98de755683bb2b7e7615",
+            "reference": "5c056e81f48b71130dab98de755683bb2b7e7615",
             "shasum": ""
         },
         "require": {
             "php": ">=5.4.0"
         },
         "require-dev": {
-            "phpunit/phpunit": "3.7.*"
+            "mf2/tests": "@dev",
+            "phpdocumentor/phpdocumentor": "v2.8.4",
+            "phpunit/phpunit": "4.8.*"
         },
         "suggest": {
-            "barnabywalters/mf-cleaner": "To more easily handle the canonical data php-mf2 gives you"
+            "barnabywalters/mf-cleaner": "To more easily handle the canonical data php-mf2 gives you",
+            "masterminds/html5": "Alternative HTML parser for PHP, for better HTML5 support."
         },
-        "time": "2016-03-14 12:13:34",
+        "time": "2018-03-29T17:54:32+00:00",
         "bin": [
             "bin/fetch-mf2",
             "bin/parse-mf2"
@@ -79,7 +82,7 @@
         },
         "notification-url": "https://packagist.org/downloads/",
         "license": [
-            "CC0"
+            "CC0-1.0"
         ],
         "authors": [
             {

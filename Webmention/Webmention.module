@@ -1,16 +1,21 @@
-<?php
-
+<?php namespace ProcessWire;
 /**
  * Webmention module
  *
  * Provides webmention support for ProcessWire
  *
- * @author Gregor Morrill, http://gregorlove.com
- * @see http://indiewebcamp.com/webmention
+ * @author Gregor Morrill, https://gregorlove.com
+ * @see https://webmention.net/
  */
 
+use DateTime;
+use DateTimeZone;
+use DOMDocument;
+use PDO;
+use Mf2;
 use BarnabyWalters\Mf2 as Mf2helper;
 use GregorMorrill\ProcessWireShim;
+use ProcessWire\LazyCron;
 
 
 $dirname = dirname(__FILE__);
@@ -24,7 +29,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	 * @var Field
 	 * @access protected
 	 */
-	protected $webmention_field = NULL;
+	protected $webmention_field = null;
 
 
 	/**
@@ -51,11 +56,11 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	{
 		return array(
 			'title'		=> 'Webmention',
-			'version'	=> 113,
+			'version'	=> 200,
 			'summary'	=> 'Webmention is a simple way to automatically notify any URL when you link to it on your site. From the receiver’s perspective, it is a way to request notification when other sites link to it.',
-			'href'		=> 'http://www.webmention.net',
-			'singular'	=> TRUE,
-			'autoload'	=> TRUE,
+			'href'		=> 'https://webmention.net/',
+			'singular'	=> true,
+			'autoload'	=> true,
 			'installs'	=> array('FieldtypeWebmentions', 'InputfieldWebmentions', 'ProcessWebmentionsManager'),
 		);
 	} # end method getModuleInfo()
@@ -75,12 +80,14 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	 */
 	public static function getDefaultData()
 	{
-		return array(
+		return [
 			'fields_to_parse' => 'body',
 			'http_https_same' => 1,
 			'verbose_logging' => 1,
+			'process_referers' => 1,
+			'is_vouch_required' => 0,
 			'schema_version' => self::SCHEMA_VERSION,
-		);
+		];
 	} # end method getDefaultData()
 
 
@@ -174,7 +181,18 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$field->name = 'verbose_logging';
 		$field->label = 'Enable verbose logging';
 		$field->checked = ( $data['verbose_logging'] ) ? 'checked' : '';
-		$field->description = 'Verbose logging includes webmention endpoint discovery, sending, and recieving. Regular logging will only include errors.';
+		$field->description = 'Verbose logging includes webmention endpoint discovery, sending, and receiving. Regular logging will only include errors.';
+		$field->columnWidth = 50;
+
+		$inputfields->add($field);
+
+		# Process referer URLs
+		$field = wire('modules')->get('InputfieldCheckbox');
+		$field->name = 'process_referers';
+		$field->value = 0;
+		$field->checked = ( $data['process_referers'] ) ? 'checked' : '';
+		$field->label = 'Process referer URLs for potential vouches';
+		$field->description = 'If a referring URL links back to your site, it may be used as a vouch when sending webmentions';
 		$field->columnWidth = 50;
 
 		$inputfields->add($field);
@@ -271,8 +289,9 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$this->modules->saveModuleConfigData($this, self::getDefaultData());
 
 		$sql = <<< END
-CREATE TABLE `{$this->className}_send_queue` (
+CREATE TABLE IF NOT EXISTS `{$this->className}_send_queue` (
 	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	`pages_id` int(10) unsigned NOT NULL DEFAULT '0',
 	`source` varchar(255) NOT NULL DEFAULT '',
 	`target` varchar(255) NOT NULL DEFAULT '',
 	`vouch` varchar(255) NOT NULL DEFAULT '',
@@ -286,7 +305,7 @@ END;
 		$this->database->query($sql);
 
 		$sql = <<< END
-CREATE TABLE `{$this->className}_referer_queue` (
+CREATE TABLE IF NOT EXISTS `{$this->className}_referer_queue` (
 	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 	`url` varchar(255) NOT NULL DEFAULT '',
 	`created` datetime NOT NULL,
@@ -299,7 +318,7 @@ END;
 		$this->database->query($sql);
 
 		$sql = <<< END
-CREATE TABLE `{$this->className}_vouches` (
+CREATE TABLE IF NOT EXISTS `{$this->className}_vouches` (
 	`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 	`domain` varchar(255) NOT NULL DEFAULT '',
 	`url` varchar(255) NOT NULL DEFAULT '',
@@ -359,7 +378,11 @@ END;
 			$this->updateDatabaseSchema();
 		}
 
-		$this->addHook('LazyCron::every30Seconds', $this, 'processReferer');
+		if ( $this->process_referers )
+		{
+			$this->addHook('LazyCron::every30Seconds', $this, 'processReferer');
+		}
+
 		$this->addHook('LazyCron::every30Seconds', $this, 'sendWebmentions');
 		$this->addHook('LazyCron::everyDay', $this, 'processVouchWhitelist');
 
@@ -391,7 +414,10 @@ END;
 		 */
 		$this->addHookBefore('PageRender::renderPage', function($event) {
 
-			$this->recordReferer();
+			if ( $this->process_referers )
+			{
+				$this->recordReferer();
+			}
 
 			$page = $event->page;
 			$this->findFieldtypeWebmentions($page);
@@ -401,7 +427,7 @@ END;
 			{
 				$endpoint = ( $this->custom_endpoint ) ? $this->custom_endpoint : $this->pages->get('template=webmention-endpoint')->httpUrl;
 				$link = sprintf('Link: <%s>; rel="webmention"', $endpoint);
-				header($link, FALSE);
+				header($link, false);
 			} # end if
 
 		});
@@ -514,12 +540,12 @@ END;
 			if ( $field->type instanceof FieldtypeWebmentions )
 			{
 				$this->webmention_field = $field;
-				return TRUE;
+				return true;
 			}
 
 		} # end loop
 
-		return FALSE;
+		return false;
 	} # end method findFieldtypeWebmentions()
 
 
@@ -545,8 +571,7 @@ END;
 
 		if ( !$count )
 		{
-			$this->log->save('webmentions-received', 'No webmention fields found when running processWebmentions');
-			return FALSE;
+			return false;
 		}
 
 		$field = reset($fields);
@@ -557,7 +582,7 @@ END;
 
 		if ( $webmentions->count() == 0 )
 		{
-			return TRUE;
+			return true;
 		}
 
 		foreach ( $webmentions as $webmention )
@@ -580,7 +605,7 @@ END;
 			$this->saveWebmention($webmention);
 		}
 
-		return TRUE;
+		return true;
 	} # end method processWebmentions()
 
 
@@ -668,6 +693,9 @@ END;
 	{
 		$http = new WireHttp();
 
+		$original_target = $webmention->target_url;
+		$original_source = $webmention->source_url;
+
 		## Verify the target URL
 		$target_response = $http->get($webmention->target_url);
 		$http_code = $http->getHttpCode();
@@ -675,7 +703,7 @@ END;
 		# if: webmention target is HTTP 404
 		if ( $http_code == 404 )
 		{
-			$webmention->content = $webmention->name = sprintf('The target URL %s was not found.', $webmention->target_url);
+			$webmention->content = $webmention->name = sprintf('The target URL %s was not found.', $original_target);
 			$webmention->status = WebmentionItem::statusError;
 			$webmention->visibility = WebmentionItem::visibilityPrivate;
 			$this->log->save('webmentions-received', $webmention->name);
@@ -698,7 +726,7 @@ END;
 		# if: webmention source is HTTP 404
 		if ( $http_code == 404 )
 		{
-			$webmention->content = $webmention->name = sprintf('The source URL %s was not found.', $webmention->source_url);
+			$webmention->content = $webmention->name = sprintf('The source URL %s was not found.', $original_source);
 			$webmention->status = WebmentionItem::statusError;
 			$webmention->visibility = WebmentionItem::visibilityPrivate;
 			$this->log->save('webmentions-received', $webmention->name);
@@ -711,7 +739,7 @@ END;
 
 			if ( $this->verbose_logging )
 			{
-			$this->log->save('webmentions-received', sprintf('Source URL %s is HTTP 410. Webmention %d will be deleted.', $webmention->source_url, $webmention->id));
+				$this->log->save('webmentions-received', sprintf('Source URL %s is HTTP 410. Webmention %d will be deleted.', $original_source, $webmention->id));
 			}
 
 			return WebmentionItem::actionDelete;
@@ -730,24 +758,22 @@ END;
 		 * that means this is likely a notification rather than
 		 * a mention or reply. Do nothing for now until more experimentation
 		 * is done with update/delete and reply-contexts.
-		 * Discussion: https://indiewebcamp.com/reply-context#CRUD
+		 * Discussion: https://indieweb.org/reply-context#CRUD
 		 */
 
 		$source_base_url = parse_url($webmention->source_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->source_url, PHP_URL_HOST);
 		$source_pattern = '#(?i)' . $source_base_url . '(?-i)' . preg_replace('#' . $source_base_url . '#i', '', $webmention->source_url) . '#';
 
-		# if: source URL is already linked from the target; set a simple private 'linked' message
+		# if: source URL is already linked from the target; log a simple 'notification' message
 		if ( preg_match($source_pattern, $target_response) === 1 )
 		{
-			$webmention->content = $webmention->name = sprintf('The URL %s sent a notification to %s', $webmention->source_url, $webmention->target_url);
-			$webmention->status = WebmentionItem::statusApproved;
-			$webmention->visibility = WebmentionItem::visibilityPrivate;
+			$this->log->save('webmentions-received', sprintf('The URL %s sent a notification to %s', $original_source, $original_target));
 
 			return WebmentionItem::actionProcess;
 		} # end if
 
 		# if: target URL linked from source
-		if ( $this->verifyLinksTo($response, $webmention->source_url, $webmention->target_url) )
+		if ( $this->verifyLinksTo($response, $webmention->source_url, $original_target) )
 		{
 			$webmention->status = WebmentionItem::statusApproved;
 
@@ -757,7 +783,7 @@ END;
 
 			# parse first h-entry
 			$entry = $this->parseFirstEntry($parsed_content, $webmention);
-			$author = NULL;
+			$author = null;
 
 			# if: h-entry found; parse author from h-card
 			if ( $entry )
@@ -787,6 +813,11 @@ END;
 			$webmention->status = WebmentionItem::statusError;
 			$webmention->visibility = WebmentionItem::visibilityPrivate;
 
+			if ( $this->verbose_logging )
+			{
+				$this->log->save('webmentions-received', sprintf('Source %s does not link to target.', $webmention->source_url));
+			}
+
 			return WebmentionItem::actionProcess;
 		} # end if
 
@@ -805,14 +836,14 @@ END;
 		$page = $webmention->getPage();
 		$field = $webmention->getField();
 
-		$page->{$field->name}->setTrackChanges(TRUE);
+		$page->{$field->name}->setTrackChanges(true);
 		$page->{$field->name}->set($webmention->id, $webmention);
-		$page->setOutputFormatting(FALSE);
+		$page->setOutputFormatting(false);
 
-		if ( !$page->save($field->name, array('quiet' => TRUE)) )
+		if ( !$page->save($field->name, array('quiet' => true)) )
 		{
 			$this->log->save('webmentions-received', sprintf('There was an error saving webmention ID %d', $webmention->id));
-			return FALSE;
+			return false;
 		}
 
 		# clear the page cache
@@ -824,7 +855,7 @@ END;
 			$cf->remove();
 		}
 
-		return TRUE;
+		return true;
 	} # end method saveWebmention()
 
 
@@ -843,11 +874,11 @@ END;
 			$http_accept = $http_accept_override;
 		}
 
-		if ( strpos($http_accept, 'application/json') !== FALSE )
+		if ( strpos($http_accept, 'application/json') !== false )
 		{
 			$content_type = 'application/json';
 		}
-		else if ( strpos($http_accept, 'text/plain') !== FALSE )
+		else if ( strpos($http_accept, 'text/plain') !== false )
 		{
 			$content_type = 'text/plain';
 		}
@@ -859,7 +890,7 @@ END;
 		$is_www_form_urlencoded = strpos($_SERVER['CONTENT_TYPE'], 'application/x-www-form-urlencoded');
 
 		# if: request is the correct content-type
-		if ( $is_www_form_urlencoded !== FALSE )
+		if ( $is_www_form_urlencoded !== false )
 		{
 			$source = $this->input->post('source');
 			$target = $this->input->post('target');
@@ -954,7 +985,7 @@ END;
 			}
 
 			# if: vouch not accepted
-			if ( $vouch && !$this->verifyReceivedVouch($vouch, $source) )
+			if ( $this->is_vouch_required && !$this->verifyReceivedVouch($vouch, $source) )
 			{
 				$message = 'Webmention “vouch” was not accepted.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
@@ -1005,7 +1036,7 @@ END;
 
 				if ( $item->status != WebmentionItem::statusPending )
 				{
-					$page->$WebmentionField->setTrackChanges(TRUE);
+					$page->$WebmentionField->setTrackChanges(true);
 
 					$new_item = $item;
 					$this->processWebmention($new_item);
@@ -1031,16 +1062,16 @@ END;
 			} # end if
 
 			$outputFormatting = $page->outputFormatting;
-			$page->setOutputFormatting(FALSE);
+			$page->setOutputFormatting(false);
 
-			$page->save($WebmentionField, array('quiet' => TRUE));
+			$page->save($WebmentionField, array('quiet' => true));
 			$page->setOutputFormatting($outputFormatting);
 
 			$message = sprintf('Webmention from %s queued for processing.', parse_url($source, PHP_URL_HOST));
 
 			if ( $this->verbose_logging )
 			{
-			$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
+				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 			}
 
 			$this->httpResponse(202, $content_type, $message);
@@ -1082,7 +1113,7 @@ END;
 		$statement = $this->database->prepare("SELECT target FROM {$this->className}_send_queue WHERE pages_id = ? ORDER BY created ASC");
 		$result = $statement->execute(array($page_id));
 
-		if ( $result === FALSE || $statement->rowCount() == 0 )
+		if ( $result === false || $statement->rowCount() == 0 )
 		{
 			return array();
 		}
@@ -1134,7 +1165,7 @@ END;
 
 		} # end loop
 
-		return TRUE;
+		return true;
 	} # end method queueWebmentions()
 
 
@@ -1147,7 +1178,7 @@ END;
 		# fetch webmentions to be sent
 		$result = $this->database->query("SELECT * FROM {$this->className}_send_queue WHERE processed IS NULL ORDER BY created ASC LIMIT 5");
 
-		if ( $result === FALSE || $result->rowCount() == 0 )
+		if ( $result === false || $result->rowCount() == 0 )
 		{
 			return;
 		}
@@ -1157,9 +1188,6 @@ END;
 		# array of webmention responses
 		$responses = array();
 
-		// $Micropub = $this->modules->get('Micropub');
-		// $this->log->save('webmentions-sent', 'sendWebmention Micropub module called.');
-
 		# loop: each webmention to send
 		while ( $row = $result->fetch(PDO::FETCH_ASSOC) )
 		{
@@ -1168,16 +1196,14 @@ END;
 
 			if ( $row['params'] )
 			{
-				$params = json_decode($row['params'], TRUE);
+				$params = json_decode($row['params'], true);
 			}
 
-			/*
-			TODO: Make this work with Micropub optional
+			/*TODO: Make this work with Micropub optional
 			if ( isset($params['private']) )
 			{
 				$extra_parameters['code'] = $Micropub->getCode($row['source'], array('target' => $row['target']));
-			}
-			*/
+			}*/
 
 			$responses[] = $this->sendWebmention($row['source'], $row['target'], $extra_parameters);
 
@@ -1213,7 +1239,7 @@ END;
 
 			if ( $this->verbose_logging )
 			{
-			$this->log->save('webmentions-sent', sprintf('No endpoint found for %s.', $target));
+				$this->log->save('webmentions-sent', sprintf('No endpoint found for %s.', $target));
 			}
 
 			return null;
@@ -1231,7 +1257,7 @@ END;
 		if ( $this->isLoopback($endpoint) )
 		{
 			$this->log->save('webmentions-sent', sprintf('Endpoint %s is localhost or a loopback address. Skipping.', $endpoint));
-			return FALSE;
+			return false;
 		} # end if
 
 		# if: sending pingback as fallback
@@ -1254,29 +1280,22 @@ END;
 
 		if ( $this->verbose_logging )
 		{
-		$this->log->save('webmentions-sent', sprintf('Initiate sending %s from %s to %s.', $endpoint_data['type'], $source, $target));
+			$this->log->save('webmentions-sent', sprintf('Initiate sending %s from %s to %s.', $endpoint_data['type'], $source, $target));
 		}
 
 		$response = $http->post($endpoint, $data);
 		$http_code = $http->getHttpCode();
+		$http_code_class = substr($http_code, 0, 1);
 
-		/*
-		if ( !$response )
-		{
-			$this->log->save('webmentions-sent', sprintf('Error sending webmention - %s: %s', $http_code, $http->getError()));
-			return;
-		}
-		*/
-
-		# if: successful webmention
-		if ( in_array($http_code, array('200', '201', '202')) )
+		# if: 2xx and 3xx HTTP responses considered successful
+		if ( in_array($http_code_class, array(2, 3)) )
 		{
 			$message = sprintf('Sent webmention for %s successfully to %s.', $target, $endpoint);
 		}
 		# else: error
 		else
 		{
-			$message = sprintf('Error sending webmention for %s to %s.', $target, $endpoint);
+			$message = sprintf('Error sending webmention for %s to %s. Response was HTTP %s', $target, $endpoint, $http_code);
 		} # end if
 
 		$this->log->save('webmentions-sent', sprintf('%s|%s|%s|%s', $message, $http_code, http_build_query($data), $response));
@@ -1352,6 +1371,28 @@ END;
 
 
 	/**
+	 * This method resolves a URL's 3xx redirects and returns the final URL
+	 * @param string $url
+	 * @return string
+	 */
+	protected function resolveRedirects($url)
+	{
+		$http = new WireHttp();
+
+		$response = $http->get($url);
+		$http_headers = $http->getResponseHeaders();
+
+		# if: redirected; update final URL
+		if ( !empty($http_headers['location']) )
+		{
+			$url = $http_headers['location'];
+		}
+
+		return $url;
+	} # end method resolveRedirects()
+
+
+	/**
 	 * This method handles discovery of webmention endpoint
 	 * @param string $url
 	 * @access protected
@@ -1395,7 +1436,7 @@ END;
 
 					return array(
 						'type'		=> 'webmention',
-						'endpoint'	=> $endpoint
+						'endpoint'	=> $this->resolveRedirects($endpoint)
 					);
 				} # end if
 
@@ -1414,7 +1455,7 @@ END;
 
 			return array(
 				'type'		=> 'webmention',
-				'endpoint'	=> $endpoint
+				'endpoint'	=> $this->resolveRedirects($endpoint)
 			);
 		} # end if
 
@@ -1431,7 +1472,7 @@ END;
 
 		## 4. Look for <link> elements with pingback rel-value
 
-		# if: webmention <link> element found
+		# if: pingback <link> element found
 		if ( !empty($links['pingback']) )
 		{
 			return array(
@@ -1440,7 +1481,7 @@ END;
 			);
 		} # end if
 
-		return NULL;
+		return null;
 	} # end method discovery()
 
 
@@ -1456,7 +1497,7 @@ END;
 
 		if ( $domain == 'localhost' )
 		{
-			return TRUE;
+			return true;
 		}
 
 		$records = dns_get_record($domain);
@@ -1472,16 +1513,16 @@ END;
 				$ip = ( $record['type'] == 'A' ) ? $record['ip'] : $record['ipv6'];
 
 				# if: the IP address is in the reserved range, this is a loopback
-				if ( filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) === FALSE )
+				if ( filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) === false )
 				{
-					return TRUE;
+					return true;
 				} # end if
 
 			} # end if
 
 		} # end loop
 
-		return FALSE;
+		return false;
 	} # end method isLoopback()
 
 
@@ -1549,10 +1590,10 @@ END;
 			return $links;
 		}
 
-		libxml_use_internal_errors(TRUE);
+		libxml_use_internal_errors(true);
 		$dom = new DOMDocument('1.0', 'UTF-8');
 		$dom->loadHTML($body);
-		$dom->preserveWhiteSpace = FALSE;
+		$dom->preserveWhiteSpace = false;
 
 		$element_types = array('a', 'link');
 
@@ -1652,7 +1693,7 @@ END;
 
 	/**
 	 * This method retrieves microformat content from HTML
-	 * Returns FALSE if no microformats found in the HTML
+	 * Returns false if no microformats found in the HTML
 	 * @param string $html
 	 * @param string $url
 	 * @access public
@@ -1671,7 +1712,7 @@ END;
 		# else:
 		else
 		{
-			return FALSE;
+			return false;
 		} # end if
 
 	} # end method fetchMicroformats()
@@ -1679,7 +1720,7 @@ END;
 
 	/**
 	 * This method handles parsing the first h-entry in a microformat collection
-	 * Returns FALSE if no h-entry found in the collection
+	 * Returns false if no h-entry found in the collection
 	 * @param array $collection
 	 * @param WebmentionItem $webmention
 	 * @access public
@@ -1753,12 +1794,12 @@ END;
 				$webmention->set('url', $url);
 			}
 
-			$published = Mf2helper\getDateTimeProperty('published', $entry, TRUE);
+			$published = Mf2helper\getDateTimeProperty('published', $entry, true);
 			$array_date = $this->parseDateTime($published, $webmention->created);
 			$webmention->set('published', $array_date['date']);
 			$webmention->set('published_offset', $array_date['has_timezone']);
 
-			$updated = Mf2helper\getDateTimeProperty('updated', $entry, TRUE);
+			$updated = Mf2helper\getDateTimeProperty('updated', $entry, true);
 			$array_date = $this->parseDateTime($updated, $webmention->created);
 			$webmention->set('updated', $array_date['date']);
 			$webmention->set('updated_offset', $array_date['has_timezone']);
@@ -1769,8 +1810,8 @@ END;
 		else
 		{
 			$webmention->set('url', $webmention->source_url);
-			$webmention->published = $webmention->updated = NULL;
-			return FALSE;
+			$webmention->published = $webmention->updated = null;
+			return false;
 		} # end if
 
 	} # end method parseFirstEntry()
@@ -1778,7 +1819,7 @@ END;
 
 	/**
 	 * This method handles parsing the first h-card in a microformat collection
-	 * Returns FALSE if no h-card found in the collection
+	 * Returns false if no h-card found in the collection
 	 * @param array $collection
 	 * @param WebmentionItem $webmention
 	 * @access private
@@ -1799,12 +1840,12 @@ END;
 			$webmention->set('author_logo', Mf2helper\getPlaintext($card, 'logo'));
 			$webmention->set('author_url', reset(Mf2helper\getPlaintextArray($card, 'url')));
 
-			return TRUE;
+			return true;
 		}
 		# else: no h-card found
 		else
 		{
-			return FALSE;
+			return false;
 		} # end if
 
 	} # end method parseFirstCard()
@@ -1852,7 +1893,7 @@ END;
 			else
 			{
 				$webmention->set('author_name', $author);
-				return TRUE;
+				return true;
 			} # end if
 
 		} # end if
@@ -1872,9 +1913,9 @@ END;
 			$mf2_author_page = $this->fetchMicroformats($response, $author_page);
 
 			# if: no microformats
-			if ( $mf2_author_page === FALSE )
+			if ( $mf2_author_page === false )
 			{
-				return FALSE;
+				return false;
 			} # end if
 
 			$cards = Mf2helper\findMicroformatsByType($mf2_author_page, 'h-card');
@@ -1932,7 +1973,7 @@ END;
 
 		} # end if
 
-		return FALSE;
+		return false;
 	} # end method getAuthorship()
 
 
@@ -1960,7 +2001,7 @@ END;
 			$webmention->set('author_url', reset($author_urls));
 		}
 
-		return TRUE;
+		return true;
 	} # end method setAuthor()
 
 
@@ -2004,7 +2045,7 @@ END;
 		# else: no rel-author
 		else
 		{
-			return FALSE;
+			return false;
 		} # end if
 
 	} # end method parseRelAuthor()
@@ -2023,7 +2064,7 @@ END;
 		$webmention->set('author_name', $url_parts['host']);
 		$webmention->set('author_url', sprintf('%s://%s', $url_parts['scheme'], $url_parts['host']));
 
-		return TRUE;
+		return true;
 	} # end method parseDefaultAuthor()
 
 
@@ -2034,11 +2075,11 @@ END;
 	 * @access private
 	 * @return mixed
 	 */
-	private function parseDateTime($string_date, $fallback = NULL)
+	private function parseDateTime($string_date, $fallback = null)
 	{
-		$timezone = NULL;
+		$timezone = null;
 		$parsed = date_parse($string_date);
-		$has_timezone = ( isset($parsed['zone']) ) ? TRUE : FALSE;
+		$has_timezone = ( isset($parsed['zone']) ) ? true : false;
 
 		if ( empty($string_date) && !empty($fallback) )
 		{
@@ -2119,7 +2160,7 @@ END;
 		$statement = $this->database->prepare("SELECT * FROM {$this->className}_vouches WHERE url = ?");
 		$result = $statement->execute(array($referer));
 
-		if ( $result === FALSE || $statement->rowCount() > 0 )
+		if ( $result === false || $statement->rowCount() > 0 )
 		{
 			return;
 		}
@@ -2142,55 +2183,72 @@ END;
 
 		$result = $this->database->query("SELECT * FROM {$this->className}_referer_queue WHERE processed IS NULL ORDER BY created ASC LIMIT 1");
 
-		if ( $result === FALSE || $result->rowCount() == 0 )
+		if ( $result === false || $result->rowCount() == 0 )
 		{
 			return;
 		}
 
 		$row = $result->fetch(PDO::FETCH_ASSOC);
 
-		$http = new WireHttp();
-		$response = $http->get($row['url']);
+		$statement_processed = $this->database->prepare("UPDATE {$this->className}_referer_queue SET processed = NOW() WHERE id = ?");
 
-		libxml_use_internal_errors(TRUE);
-		$dom = new DOMDocument('1.0', 'UTF-8');
-		$dom->loadHTML($response);
-		$dom->preserveWhiteSpace = FALSE;
+		$http = new WireHttp();;
+		$response = $http->get( $this->sanitizer->url($row['url']) );
+		$http_code = $http->getHttpCode();
 
-		# get <a> DOMElements
-		$a_elements = $dom->getElementsByTagName('a');
-
-		$statement_vouches = $this->database->prepare("INSERT INTO {$this->className}_vouches SET domain = ?, url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
-
-		$ignore_domains = array(
-			'brid.gy',
-			'google.com',
-			'yahoo.com',
-			'bing.com',
-			't.co',
-		);
-
-		# loop: each <a> DOMElement
-		foreach ( $a_elements as $a )
+		# if: referer URL is HTTP 200 OK
+		if ( $http_code == 200 )
 		{
-			$rel = $a->getAttribute('rel');
-			$href = $a->getAttribute('href');
+			libxml_use_internal_errors(true);
+			$dom = new DOMDocument('1.0', 'UTF-8');
+			$dom->loadHTML($response);
+			$dom->preserveWhiteSpace = false;
 
-			$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($row['url'], PHP_URL_HOST));
+			# get <a> DOMElements
+			$a_elements = $dom->getElementsByTagName('a');
 
-			# if: domain is not ignored, link does not have rel=nofollow, and links back
-			if ( !in_array($domain, $ignore_domains) && ($rel != 'nofollow') && strpos($href, $this->config->httpHost) !== FALSE )
+			$statement_vouches = $this->database->prepare("INSERT INTO {$this->className}_vouches SET domain = ?, url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
+
+			$ignore_domains = [
+				'brid.gy',
+				'google.com',
+				'yahoo.com',
+				'bing.com',
+				't.co',
+			];
+
+			# loop: each <a> DOMElement
+			foreach ( $a_elements as $a )
 			{
-				$url = $this->sanitizer->url($row['url']);
-				$result = $statement_vouches->execute(array($domain, $url));
+				$rel = $a->getAttribute('rel');
+				$href = $a->getAttribute('href');
 
-				break;
-			} # end if
+				$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($row['url'], PHP_URL_HOST));
 
-		} # end loop
+				# if: domain is not ignored, link does not have rel=nofollow, and links back
+				if ( !in_array($domain, $ignore_domains) && ($rel != 'nofollow') && strpos($href, $this->config->httpHost) !== false )
+				{
+					$url = $this->sanitizer->url($row['url']);
+					$statement_vouches->execute(array($domain, $url));
 
-		$statement = $this->database->prepare("UPDATE {$this->className}_referer_queue SET processed = NOW() WHERE id = ?");
-		$result = $statement->execute(array($row['id']));
+					break;
+				} # end if
+
+			} # end loop
+
+		}
+		# else: non-200 response
+		else
+		{
+
+			if ( $this->verbose_logging )
+			{
+				$this->log->save('webmentions-referers', sprintf('Referer URL %s returned HTTP %s', $row['url'], $http_code));
+			}
+
+		} # end if
+
+		$statement_processed->execute(array($row['id']));
 
 		return;
 	} # end method processReferer()
@@ -2201,7 +2259,7 @@ END;
 	 * @param string $vouch_url
 	 * @param string $source_url
 	 * @access public
-	 * @see https://indiewebcamp.com/Vouch
+	 * @see https://indieweb.org/Vouch
 	 */
 	public function verifyReceivedVouch($vouch_url, $source_url)
 	{
@@ -2218,17 +2276,17 @@ END;
 		if ( !in_array($vouch_domain, $approved_vouches) )
 		{
 			$this->log->save('webmentions-received', sprintf('Vouch domain %s not approved.', $vouch_domain));
-			return FALSE;
+			return false;
 		}
 
 		set_time_limit(0);
 
 		$response = $http->get($vouch_url);
 
-		libxml_use_internal_errors(TRUE);
+		libxml_use_internal_errors(true);
 		$dom = new DOMDocument('1.0', 'UTF-8');
 		$dom->loadHTML($response);
-		$dom->preserveWhiteSpace = FALSE;
+		$dom->preserveWhiteSpace = false;
 
 		# get <a> DOMElements
 		$a_elements = $dom->getElementsByTagName('a');
@@ -2240,15 +2298,15 @@ END;
 			$href = $a->getAttribute('href');
 
 			# if: vouch URL links to source domain and does *not* have rel=nofollow
-			if ( strpos($href, $source_domain) !== FALSE && ($rel != 'nofollow') )
+			if ( strpos($href, $source_domain) !== false && ($rel != 'nofollow') )
 			{
-				return TRUE;
+				return true;
 			} # end if
 
 		}
 
 		$this->log->save('webmentions-received', sprintf('Vouch %s does not link to %s with rel=nofollow.', $vouch_url, $source_domain));
-		return FALSE;
+		return false;
 	} # end method verifyReceivedVouch()
 
 
@@ -2257,7 +2315,7 @@ END;
 	 * @param string $url
 	 * @access public
 	 * @return bool|string
-	 * @see https://indiewebcamp.com/Vouch
+	 * @see https://indieweb.org/Vouch
 	 */
 	public function findVouchFor($url)
 	{
@@ -2275,7 +2333,7 @@ END;
 		# if: ignore vouch for this domain
 		if ( in_array($domain, $ignore_domains) )
 		{
-			return FALSE;
+			return false;
 		} # end if
 
 		$http = new WireHttp();
@@ -2289,9 +2347,9 @@ END;
 		$result = $this->database->query("SELECT * FROM {$this->className}_vouches WHERE domain = '{$domain}' AND `deleted` IS NULL");
 
 		# if: db/query error
-		if ( $result === FALSE )
+		if ( $result === false )
 		{
-			return FALSE;
+			return false;
 		}
 		# else if: vouch found
 		else if ( $result->rowCount() > 0 )
@@ -2302,10 +2360,10 @@ END;
 
 		$response = $http->get($url);
 
-		libxml_use_internal_errors(TRUE);
+		libxml_use_internal_errors(true);
 		$dom = new DOMDocument('1.0', 'UTF-8');
 		$dom->loadHTML($response);
-		$dom->preserveWhiteSpace = FALSE;
+		$dom->preserveWhiteSpace = false;
 
 		# get <a> DOMElements
 		$a_elements = $dom->getElementsByTagName('a');
@@ -2330,7 +2388,7 @@ END;
 					# check vouches
 					$result = $this->database->query("SELECT * FROM {$this->className}_vouches WHERE domain = '{$potential_vouch_domain}'");
 
-					if ( $result === FALSE || $result->rowCount() == 0 )
+					if ( $result === false || $result->rowCount() == 0 )
 					{
 						continue;
 					}
@@ -2343,7 +2401,7 @@ END;
 
 		} # end loop: each <a>
 
-		return FALSE;
+		return false;
 	} # end method findVouchFor()
 
 
@@ -2357,10 +2415,10 @@ END;
 
 		if ( !$this->vouch_whitelist )
 		{
-			return FALSE;
+			return false;
 		}
 
-		$has_new_domains = FALSE;
+		$has_new_domains = false;
 
 		# retrieve the module's config data; break out approved vouch domains into array
 		$data = $this->modules->getModuleConfigData($this);
@@ -2384,7 +2442,7 @@ END;
 				# if: domain is not in approved vouches yet; add it
 				if ( !in_array($domain, $approved_vouches) )
 				{
-					$has_new_domains = TRUE;
+					$has_new_domains = true;
 					$approved_vouches[] = $domain;
 				} # end if
 
@@ -2401,7 +2459,7 @@ END;
 			$this->modules->saveModuleConfigData($this, $data);
 		} # end if
 
-		return TRUE;
+		return true;
 	} # end method processVouchWhitelist()
 
 
@@ -2471,7 +2529,7 @@ END;
 				break;
 			}
 
-			if ( $sql && $this->database->exec($sql) !== FALSE )
+			if ( $sql && $this->database->exec($sql) !== false )
 			{
 				$config_data = $this->modules->getModuleConfigData($this);
 				$config_data['schema_version'] = $this->schema_version;
@@ -2487,3 +2545,4 @@ END;
 	} # end method updateDatabaseSchema()
 
 }
+
