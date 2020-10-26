@@ -17,7 +17,6 @@ use BarnabyWalters\Mf2 as Mf2helper;
 use GregorMorrill\ProcessWireShim;
 use ProcessWire\LazyCron;
 
-
 $dirname = dirname(__FILE__);
 require_once($dirname . '/vendor/autoload.php');
 require_once($dirname . '/GregorMorrill/Webmention/WireHttp.php');
@@ -31,21 +30,19 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	 */
 	protected $webmention_field = null;
 
-
 	/**
 	 * HTTP response codes
 	 * @var array
 	 * @access protected
 	 */
-	protected $http_response_codes = array(
+	protected $http_response_codes = [
 		200	=> 'OK',
 		202	=> 'Accepted',
 		400	=> 'Bad Request',
 		404	=> 'Not Found',
 		449 => 'Retry With',
 		500	=> 'Internal Server Error',
-	);
-
+	];
 
 	/**
 	 * Provide module information to ProcessWire
@@ -54,24 +51,29 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	 */
 	public static function getModuleInfo()
 	{
-		return array(
+		return [
 			'title'		=> 'Webmention',
 			'version'	=> 200,
 			'summary'	=> 'Webmention is a simple way to automatically notify any URL when you link to it on your site. From the receiver’s perspective, it is a way to request notification when other sites link to it.',
 			'href'		=> 'https://webmention.net/',
 			'singular'	=> true,
 			'autoload'	=> true,
-			'installs'	=> array('FieldtypeWebmentions', 'InputfieldWebmentions', 'ProcessWebmentionsManager'),
-		);
-	} # end method getModuleInfo()
-
+			'installs'	=> [
+				'FieldtypeWebmentions',
+				'InputfieldWebmentions',
+				'ProcessWebmentionsManager',
+			],
+			'requires' => [
+				'PHP>=5.6',
+			],
+		];
+	}
 
 	/**
 	 * Current database schema for non-fieldtype database tables
 	 * @var int SCHEMA_VERSION
 	 */
 	const SCHEMA_VERSION = 3;
-
 
 	/**
 	 * This method gets the module's default config data
@@ -88,8 +90,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			'is_vouch_required' => 0,
 			'schema_version' => self::SCHEMA_VERSION,
 		];
-	} # end method getDefaultData()
-
+	}
 
 	/**
 	 * This method handles setting up the module's configuration fields
@@ -107,7 +108,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$field->attr('name+id', 'frequency_to_process');
 		$field->columnWidth = 50;
 
-		$options = array(
+		$options = [
 			0 => 'Disabled',
 			1 => '1 minute',
 			2 => '2 minutes',
@@ -119,7 +120,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			30 => '30 minutes',
 			45 => '45 minutes',
 			60 => '60 minutes',
-		);
+		];
 
 		$field->addOptions($options);
 
@@ -237,8 +238,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		$inputfields->add($field);
 
 		return $inputfields;
-	} # end method getModuleConfigInputFields()
-
+	}
 
 	/**
 	 * Module constructor
@@ -250,8 +250,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 		{
 			$this->$key = $value;
 		}
-	} # end method __construct()
-
+	}
 
 	/**
 	 * This method handles installing the module
@@ -260,7 +259,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 	public function ___install()
 	{
 
-		# if: webmention template does not exist yet
+		# webmention template does not exist yet
 		if ( is_null($this->templates->get('webmention-endpoint')) )
 		{
 			# add a field group for the webmention endpoint template
@@ -283,7 +282,7 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			$p->parent = 1;
 			$p->title = 'Webmention Endpoint';
 			$p->save();
-		} # end if
+		}
 
 		# save the default module configuration
 		$this->modules->saveModuleConfigData($this, self::getDefaultData());
@@ -331,8 +330,7 @@ CREATE TABLE IF NOT EXISTS `{$this->className}_vouches` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
 END;
 		$this->database->query($sql);
-	} # end method ___install()
-
+	}
 
 	/**
 	 * This method handles uninstalling the module
@@ -357,8 +355,7 @@ END;
 		$this->database->query("DROP TABLE IF EXISTS {$this->className}_send_queue");
 		$this->database->query("DROP TABLE IF EXISTS {$this->className}_referer_queue");
 		$this->database->query("DROP TABLE IF EXISTS {$this->className}_vouches");
-	} # end method ___unInstall()
-
+	}
 
 	/**
 	 * Initialize the module
@@ -372,7 +369,7 @@ END;
 		$date = new DateTime();
 		$this->gmt_offset = $date->format('P');
 
-		# if: not using the latest schema; upgrade database
+		# not using the latest schema; upgrade database
 		if ( $this->schema_version < self::SCHEMA_VERSION )
 		{
 			$this->updateDatabaseSchema();
@@ -386,7 +383,7 @@ END;
 		$this->addHook('LazyCron::every30Seconds', $this, 'sendWebmentions');
 		$this->addHook('LazyCron::everyDay', $this, 'processVouchWhitelist');
 
-		# if: auto-process received webmentions
+		# auto-process received webmentions
 		if ( $this->frequency_to_process )
 		{
 
@@ -406,7 +403,7 @@ END;
 			}
 
 			$this->addHook('LazyCron::' . $cron_frequency, $this, 'processWebmentions');
-		} # end if: auto-process received webmentions
+		}
 
 
 		/**
@@ -422,13 +419,13 @@ END;
 			$page = $event->page;
 			$this->findFieldtypeWebmentions($page);
 
-			# if: page supports webmentions, send Link: header
+			# page supports webmentions, send Link: header
 			if ( $this->webmention_field )
 			{
 				$endpoint = ( $this->custom_endpoint ) ? $this->custom_endpoint : $this->pages->get('template=webmention-endpoint')->httpUrl;
 				$link = sprintf('Link: <%s>; rel="webmention"', $endpoint);
 				header($link, false);
-			} # end if
+			}
 
 		});
 
@@ -465,11 +462,11 @@ END;
 				$field->attr('class', $field->class);
 				$field->label = 'Send Webmentions';
 
-				# if: check the box by default on the first page edit
+				# check the box by default on the first page edit
 				if ( $page->created === $page->modified )
 				{
 					$field->attr('checked', 'checked');
-				} # end if
+				}
 
 				$event->return = $event->return->append($field);
 			}
@@ -484,33 +481,33 @@ END;
 
 			$page = $event->arguments('page');
 
-			# if: page is published, and user checked 'send webmention'
+			# page is published, and user checked 'send webmention'
 			if ( !$page->is(Page::statusUnpublished) && $this->input->post->send_webmentions == 1 )
 			{
 				$fields_to_parse = explode(',', $this->fields_to_parse);
 
-				$urls = array();
+				$urls = [];
 
-				# loop: each field to parse for webmention-able URLs
+				# each field to parse for webmention-able URLs
 				foreach ( $fields_to_parse as $field )
 				{
 
-					# if: page has the field; extract URLs
+					# page has the field; extract URLs
 					if ( $page->template->hasField($field) )
 					{
 						$urls = array_merge($urls, $this->extractURLs($page->{$field}, $page->httpUrl));
-					} # end if
+					}
 
-				} # end loop
+				}
 
 				$urls = array_merge($urls, $this->getWebmentionURLs($page->id));
 				$urls = array_unique($urls);
 
-				$params = array();
+				$params = [];
 
 				if ( $page->is_private )
 				{
-					$params = array('private' => 1);
+					$params = ['private' => 1];
 				}
 
 				if ( $urls )
@@ -518,11 +515,10 @@ END;
 					$this->queueWebmentions($urls, $page->httpUrl, $page->id, $params);
 				}
 
-			} # end if: checked 'send webmention'
+			}
 
 		});
-	} # end method init()
-
+	}
 
 	/**
 	 * This method handles finding if the page has FieldtypeWebmentions
@@ -533,7 +529,7 @@ END;
 	private function findFieldtypeWebmentions(Page $page)
 	{
 
-		# loop: each field for this page
+		# each field for this page
 		foreach ( $page->template->fields as $field )
 		{
 
@@ -543,11 +539,10 @@ END;
 				return true;
 			}
 
-		} # end loop
+		}
 
 		return false;
-	} # end method findFieldtypeWebmentions()
-
+	}
 
 	/**
 	 * This method initiates processing received webmentions
@@ -589,7 +584,7 @@ END;
 		{
 			$action = $this->processWebmention($webmention);
 
-			# if: delete the webmention
+			# delete the webmention
 			if ( $action == WebmentionItem::actionDelete )
 			{
 
@@ -606,8 +601,7 @@ END;
 		}
 
 		return true;
-	} # end method processWebmentions()
-
+	}
 
 	/**
 	 * Verify the source links to the target
@@ -636,28 +630,28 @@ END;
 		# get all <a> DOMElements
 		$a_elements = $dom->getElementsByTagName('a');
 
-		# loop: each <a> DOMElement
+		# each <a> DOMElement
 		foreach ( $a_elements as $a )
 		{
 
-			# if: <a> element has href attribute
+			# <a> element has href attribute
 			if ( $a->hasAttribute('href') )
 			{
 				$url = Mf2\resolveUrl($source, $a->getAttribute('href'));
 
-				# if: verify linkback without scheme
+				# verify linkback without scheme
 				if ( $this->http_https_same )
 				{
 					$hostname = strtolower(parse_url($url, PHP_URL_HOST));
 
-					# if: link hostnames match (not case-sensitive) and relative URLs match
+					# link hostnames match (not case-sensitive) and relative URLs match
 					if ( $hostname === $target_hostname && $target_relative === $this->buildRelativeURL($url) )
 					{
 						return true;
-					} # end if
+					}
 
 				}
-				# else: verify linkback exactly
+				# verify linkback exactly
 				else
 				{
 					$scheme_hostname = strtolower(
@@ -667,21 +661,20 @@ END;
 						)
 					);
 
-					# if: link scheme+hostnames match (not case-sensitive) and relative URLs match
+					# link scheme+hostnames match (not case-sensitive) and relative URLs match
 					if ( $scheme_hostname == $target_scheme_hostname && $target_relative = $this->buildRelativeURL($url) )
 					{
 						return true;
-					} # end if
+					}
 
-				} # end if
+				}
 
-			} # end if
+			}
 
-		} # end loop
+		}
 
 		return false;
-	} # end method verifyLinksTo()
-
+	}
 
 	/**
 	 * This method processes a webmention
@@ -700,7 +693,7 @@ END;
 		$target_response = $http->get($webmention->target_url);
 		$http_code = $http->getHttpCode();
 
-		# if: webmention target is HTTP 404
+		# webmention target is HTTP 404
 		if ( $http_code == 404 )
 		{
 			$webmention->content = $webmention->name = sprintf('The target URL %s was not found.', $original_target);
@@ -709,11 +702,11 @@ END;
 			$this->log->save('webmentions-received', $webmention->name);
 
 			return WebmentionItem::actionProcess;
-		} # end if
+		}
 
 		$http_headers = $http->getResponseHeaders();
 
-		# if: redirected; update final URL
+		# redirected; update final URL
 		if ( !empty($http_headers['location']) )
 		{
 			$webmention->target_url = $http_headers['location'];
@@ -723,7 +716,7 @@ END;
 		$response = $http->get($webmention->source_url);
 		$http_code = $http->getHttpCode();
 
-		# if: webmention source is HTTP 404
+		# webmention source is HTTP 404
 		if ( $http_code == 404 )
 		{
 			$webmention->content = $webmention->name = sprintf('The source URL %s was not found.', $original_source);
@@ -733,7 +726,7 @@ END;
 
 			return WebmentionItem::actionProcess;
 		}
-		# if: webmention source is HTTP 410
+		# webmention source is HTTP 410
 		else if ( $http_code == 410 )
 		{
 
@@ -743,11 +736,11 @@ END;
 			}
 
 			return WebmentionItem::actionDelete;
-		} # end if
+		}
 
 		$http_headers = $http->getResponseHeaders();
 
-		# if: redirected; update final URL
+		# redirected; update final URL
 		if ( !empty($http_headers['location']) )
 		{
 			$webmention->source_url = $http_headers['location'];
@@ -764,15 +757,15 @@ END;
 		$source_base_url = parse_url($webmention->source_url, PHP_URL_SCHEME) . '://' . parse_url($webmention->source_url, PHP_URL_HOST);
 		$source_pattern = '#(?i)' . $source_base_url . '(?-i)' . preg_replace('#' . $source_base_url . '#i', '', $webmention->source_url) . '#';
 
-		# if: source URL is already linked from the target; log a simple 'notification' message
+		# source URL is already linked from the target; log a simple 'notification' message
 		if ( preg_match($source_pattern, $target_response) === 1 )
 		{
 			$this->log->save('webmentions-received', sprintf('The URL %s sent a notification to %s', $original_source, $original_target));
 
 			return WebmentionItem::actionProcess;
-		} # end if
+		}
 
-		# if: target URL linked from source
+		# target URL linked from source
 		if ( $this->verifyLinksTo($response, $webmention->source_url, $original_target) )
 		{
 			$webmention->status = WebmentionItem::statusApproved;
@@ -785,18 +778,18 @@ END;
 			$entry = $this->parseFirstEntry($parsed_content, $webmention);
 			$author = null;
 
-			# if: h-entry found; parse author from h-card
+			# h-entry found; parse author from h-card
 			if ( $entry )
 			{
 				$author = $this->getAuthorship($entry, $parsed_content, $webmention);
 			}
-			# else: no h-entry; generic 'mentioned this' content
+			# no h-entry; generic 'mentioned this' content
 			else
 			{
 				$webmention->content = $webmention->name = sprintf('mentioned this');
-			} # end if
+			}
 
-			# if: authorship algorithm did not find an author; use domain name as default author
+			# authorship algorithm did not find an author; use domain name as default author
 			if ( !$author )
 			{
 				$author = $this->parseDefaultAuthor($webmention->source_url, $webmention);
@@ -806,7 +799,7 @@ END;
 			unset($entry);
 			unset($author);
 		}
-		# else:
+		#
 		else
 		{
 			$webmention->content = $webmention->name = sprintf('The URL %s was not found in %s', $webmention->target_url, $webmention->source_url);
@@ -819,11 +812,10 @@ END;
 			}
 
 			return WebmentionItem::actionProcess;
-		} # end if
+		}
 
 		return WebmentionItem::actionProcess;
-	} # end method processWebmention()
-
+	}
 
 	/**
 	 * This method saves a webmention field
@@ -840,7 +832,7 @@ END;
 		$page->{$field->name}->set($webmention->id, $webmention);
 		$page->setOutputFormatting(false);
 
-		if ( !$page->save($field->name, array('quiet' => true)) )
+		if ( !$page->save($field->name, ['quiet' => true]) )
 		{
 			$this->log->save('webmentions-received', sprintf('There was an error saving webmention ID %d', $webmention->id));
 			return false;
@@ -856,8 +848,7 @@ END;
 		}
 
 		return true;
-	} # end method saveWebmention()
-
+	}
 
 	/**
 	 * This method handles incoming webmentions.
@@ -889,7 +880,7 @@ END;
 
 		$is_www_form_urlencoded = strpos($_SERVER['CONTENT_TYPE'], 'application/x-www-form-urlencoded');
 
-		# if: request is the correct content-type
+		# request is the correct content-type
 		if ( $is_www_form_urlencoded !== false )
 		{
 			$source = $this->input->post('source');
@@ -899,15 +890,15 @@ END;
 			$target_sanitized = filter_var($target, FILTER_VALIDATE_URL);
 			$vouch_sanitized = filter_var($vouch, FILTER_VALIDATE_URL);
 
-			# if: source is missing
+			# source is missing
 			if ( empty($source) )
 			{
 				$message = 'Webmention “source” parameter is missing.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(400, $content_type, $message);
-			} # end if
+			}
 
-			# if: source is not a valid URL
+			# source is not a valid URL
 			if ( empty($source_sanitized) )
 			{
 				$message = 'Webmention “source” parameter is not a valid URL.';
@@ -915,23 +906,23 @@ END;
 				$this->httpResponse(400, $content_type, $message);
 			}
 
-			# if: target is missing
+			# target is missing
 			if ( empty($target) )
 			{
 				$message = 'Webmention “target” parameter is missing.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(400, $content_type, $message);
-			} # end if
+			}
 
-			# if: target is not a valid URL
+			# target is not a valid URL
 			if ( empty($target_sanitized) )
 			{
 				$message = 'Webmention “target” parameter is not a valid URL.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(400, $content_type, $message);
-			} # end if
+			}
 
-			# if: source equals target
+			# source equals target
 			if ( $source_sanitized == $target_sanitized )
 			{
 				$message = 'Webmention “source” and “target” parameters cannot be the same URL.';
@@ -939,21 +930,21 @@ END;
 				$this->httpResponse(400, $content_type, $message);
 			}
 
-			# if: vouch is required and missing
+			# vouch is required and missing
 			if ( $this->is_vouch_required && empty($vouch) )
 			{
 				$message = 'Webmention “vouch” parameter is required.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(449, $content_type, $message);
-			} # end if
+			}
 
-			# if: vouch supplied, but is not a valid url
+			# vouch supplied, but is not a valid url
 			if ( $vouch && empty($vouch_sanitized) )
 			{
 				$message = 'Webmention “vouch” parameter is is not a valid URL.';
 				$this->log->save('webmentions-received', sprintf('%s|%s|%s', $message, $_SERVER['REMOTE_ADDR'], http_build_query($this->input->post->getArray())) );
 				$this->httpResponse(449, $content_type, $message);
-			} # end if
+			}
 
 			if ( strtolower(parse_url($target, PHP_URL_HOST)) !== strtolower($this->config->httpHost) )
 			{
@@ -976,7 +967,7 @@ END;
 
 			$this->findFieldtypeWebmentions($page);
 
-			# if: no FieldtypeWebmention field on the target page; does not accept webmentions
+			# no FieldtypeWebmention field on the target page; does not accept webmentions
 			if ( empty($this->webmention_field) )
 			{
 				$message = 'Webmention “target” does not accept webmentions.';
@@ -984,7 +975,7 @@ END;
 				$this->httpResponse(400, $content_type, $message);
 			}
 
-			# if: vouch not accepted
+			# vouch not accepted
 			if ( $this->is_vouch_required && !$this->verifyReceivedVouch($vouch, $source) )
 			{
 				$message = 'Webmention “vouch” was not accepted.';
@@ -1002,7 +993,7 @@ END;
 			{
 				$http_headers = $http->getResponseHeaders();
 
-				# if: redirected; update final URL
+				# redirected; update final URL
 				if ( !empty($http_headers['location']) )
 				{
 					$location = array_pop($http_headers['location']);
@@ -1018,7 +1009,7 @@ END;
 			{
 				$http_headers = $http->getResponseHeaders();
 
-				# if: redirected; update final URL
+				# redirected; update final URL
 				if ( !empty($http_headers['location']) )
 				{
 					$location = array_pop($http_headers['location']);
@@ -1030,7 +1021,7 @@ END;
 			$md5key = md5($source . $target);
 			$item = $page->{$WebmentionField}->get('md5key=' . $md5key);
 
-			# if: update existing webmention
+			# update existing webmention
 			if ( $item )
 			{
 
@@ -1045,7 +1036,7 @@ END;
 				}
 
 			}
-			# else: add new webmention
+			# add new webmention
 			else
 			{
 				$webmention = new WebmentionItem();
@@ -1059,12 +1050,12 @@ END;
 				$webmention->set('created', date('Y-m-d H:i:s'));
 
 				$page->$WebmentionField->add($webmention);
-			} # end if
+			}
 
 			$outputFormatting = $page->outputFormatting;
 			$page->setOutputFormatting(false);
 
-			$page->save($WebmentionField, array('quiet' => true));
+			$page->save($WebmentionField, ['quiet' => true]);
 			$page->setOutputFormatting($outputFormatting);
 
 			$message = sprintf('Webmention from %s queued for processing.', parse_url($source, PHP_URL_HOST));
@@ -1076,7 +1067,7 @@ END;
 
 			$this->httpResponse(202, $content_type, $message);
 		}
-		# else: incorrect content-type
+		# incorrect content-type
 		else
 		{
 			$message = 'Webmention must be posted with Content-Type: application/x-www-form-urlencoded.';
@@ -1088,7 +1079,7 @@ END;
 				)
 			);
 			$this->httpResponse(400, $content_type, $message);
-		} # end if
+		}
 
 		$message = 'An unexpected error occurred.';
 		$this->log->save('webmentions-received',
@@ -1099,8 +1090,7 @@ END;
 			)
 		);
 		$this->httpResponse(500, $content_type, $message);
-	} # end method receiveWebmention()
-
+	}
 
 	/**
 	 * This method returns an array of URLs webmentions were sent to for a page ID
@@ -1111,24 +1101,23 @@ END;
 	public function getWebmentionURLs($page_id)
 	{
 		$statement = $this->database->prepare("SELECT target FROM {$this->className}_send_queue WHERE pages_id = ? ORDER BY created ASC");
-		$result = $statement->execute(array($page_id));
+		$result = $statement->execute([$page_id]);
 
 		if ( $result === false || $statement->rowCount() == 0 )
 		{
-			return array();
+			return [];
 		}
 
-		$urls = array();
+		$urls = [];
 
-		# loop: each webmention to send
+		# each webmention to send
 		while ( $row = $statement->fetch(PDO::FETCH_ASSOC) )
 		{
 			$urls[] = $row['target'];
-		} # end loop
+		}
 
 		return $urls;
-	} # end method getWebmentionURLs()
-
+	}
 
 	/**
 	 * This method adds URLs to a queue for asynchronous webmention sending
@@ -1139,7 +1128,7 @@ END;
 	 * @access public
 	 * @return bool
 	 */
-	public function queueWebmentions($urls, $source_url, $page_id, $params = array())
+	public function queueWebmentions($urls, $source_url, $page_id, $params = [])
 	{
 		$unique_urls = array_unique($urls);
 		$source = $this->sanitizer->url($source_url);
@@ -1152,22 +1141,20 @@ END;
 
 		$statement = $this->database->prepare("INSERT INTO {$this->className}_send_queue SET pages_id = ?, source = ?, target = ?, params = ?, created = NOW(), modified = NOW()");
 
-		# loop: each unique URL
 		foreach ( $unique_urls as $url )
 		{
 			$target = $this->sanitizer->url($url);
 
-			# if: only queue webmention is source and target exist
+			# only queue webmention is source and target exist
 			if ( $source && $target )
 			{
-				$result = $statement->execute(array($page_id, $source, $target, $json_params));
-			} # end if
+				$result = $statement->execute([$page_id, $source, $target, $json_params]);
+			}
 
-		} # end loop
+		}
 
 		return true;
-	} # end method queueWebmentions()
-
+	}
 
 	/**
 	 * This method initiates sending queued webmentions
@@ -1186,33 +1173,26 @@ END;
 		$statement_processed = $this->database->prepare("UPDATE {$this->className}_send_queue SET processed = NOW() WHERE id = ?");
 
 		# array of webmention responses
-		$responses = array();
+		$responses = [];
 
-		# loop: each webmention to send
+		# each webmention to send
 		while ( $row = $result->fetch(PDO::FETCH_ASSOC) )
 		{
 			$extra_parameters =
-			$params = array();
+			$params = [];
 
 			if ( $row['params'] )
 			{
 				$params = json_decode($row['params'], true);
 			}
 
-			/*TODO: Make this work with Micropub optional
-			if ( isset($params['private']) )
-			{
-				$extra_parameters['code'] = $Micropub->getCode($row['source'], array('target' => $row['target']));
-			}*/
-
 			$responses[] = $this->sendWebmention($row['source'], $row['target'], $extra_parameters);
 
-			$result_processed = $statement_processed->execute(array($row['id']));
-		} # end loop
+			$result_processed = $statement_processed->execute([$row['id']]);
+		}
 
 		return $responses;
-	} # end method sendWebmentions()
-
+	}
 
 	/**
 	 * This method sends an individual webmention
@@ -1221,19 +1201,19 @@ END;
 	 * @param array $extra_parameters
 	 * @access public
 	 */
-	public function sendWebmention($source, $target, $extra_parameters = array())
+	public function sendWebmention($source, $target, $extra_parameters = [])
 	{
 		$http = new WireHttp();
 
 		$endpoint_data = null;
 
-		# if: URL starts with http:// or https://
+		# URL starts with http:// or https://
 		if ( strpos($target, 'http://') === 0 || strpos($target, 'https://') === 0 )
 		{
 			$endpoint_data = $this->discovery($target);
-		} # end if
+		}
 
-		# if: no endpoint found
+		# no endpoint found
 		if ( !$endpoint_data )
 		{
 
@@ -1245,7 +1225,7 @@ END;
 			return null;
 		}
 
-		# if: vouch available for this target
+		# vouch available for this target
 		if ( $vouch = $this->findVouchFor($target) )
 		{
 			$extra_parameters['vouch'] = $vouch;
@@ -1253,21 +1233,21 @@ END;
 
 		$endpoint = $endpoint_data['endpoint'];
 
-		# if: endpoint is a loopback
+		# endpoint is a loopback
 		if ( $this->isLoopback($endpoint) )
 		{
 			$this->log->save('webmentions-sent', sprintf('Endpoint %s is localhost or a loopback address. Skipping.', $endpoint));
 			return false;
-		} # end if
+		}
 
-		# if: sending pingback as fallback
+		# sending pingback as fallback
 		if ( $endpoint_data['type'] == 'pingback' )
 		{
-			$data = xmlrpc_encode_request('pingback.ping', array($source, $target), array('verbosity' => 'no_white_space', 'encoding' => 'utf-8'));
+			$data = xmlrpc_encode_request('pingback.ping', [$source, $target], ['verbosity' => 'no_white_space', 'encoding' => 'utf-8']);
 
 			$http->setHeader('Content-Type', 'application/xml');
 		}
-		# else: sending webmention
+		# sending webmention
 		else
 		{
 			$data = array_merge(
@@ -1287,22 +1267,21 @@ END;
 		$http_code = $http->getHttpCode();
 		$http_code_class = substr($http_code, 0, 1);
 
-		# if: 2xx and 3xx HTTP responses considered successful
-		if ( in_array($http_code_class, array(2, 3)) )
+		# 2xx and 3xx HTTP responses considered successful
+		if ( in_array($http_code_class, [2, 3]) )
 		{
 			$message = sprintf('Sent webmention for %s successfully to %s.', $target, $endpoint);
 		}
-		# else: error
+		# error
 		else
 		{
 			$message = sprintf('Error sending webmention for %s to %s. Response was HTTP %s', $target, $endpoint, $http_code);
-		} # end if
+		}
 
 		$this->log->save('webmentions-sent', sprintf('%s|%s|%s|%s', $message, $http_code, http_build_query($data), $response));
 
 		return $response;
-	} # end method sendWebmention()
-
+	}
 
 	/**
 	 * This method handles extracting URLs from the supplied text
@@ -1313,18 +1292,18 @@ END;
 	 */
 	protected function extractURLs($text, $url)
 	{
-		$response = array();
+		$response = [];
 
 		# regex pattern to match URLs
 		$pattern_absolute = "~\b(?:https?://)[\w-]*[a-z][\w-]*(?:\.[\w-]+)+(?:/[\w\./%+?=&(amp;)?#\~-]+)?\b~i";
-		$pattern_relative = '#(?<=href=(?:"|\')|href=)(?!http|mailto)[^"\']+(?=(?:"|\'|>))#U';
+		$pattern_relative = '#(?<=href=(?:"|\')|href=)(?!https?|mailto)[^"\']+(?=(?:"|\'|>))#U';
 
 		# match all URLs in the text
 		preg_match_all($pattern_absolute, $text, $matches_absolute, PREG_SET_ORDER);
 		preg_match_all($pattern_relative, $text, $matches_relative, PREG_SET_ORDER);
 
 		# make all relative URLs absolute
-		array_walk_recursive($matches_relative, array($this, 'resolveUrl'), $url);
+		array_walk_recursive($matches_relative, [$this, 'resolveUrl'], $url);
 
 		$matches = array_merge($matches_absolute, $matches_relative);
 
@@ -1336,8 +1315,7 @@ END;
 		$response = array_unique($response);
 
 		return $response;
-	} # end method extractURLs()
-
+	}
 
 	/**
 	 * This method builds a relative URL
@@ -1353,8 +1331,7 @@ END;
 		$relative .= ( $fragment = parse_url($url, PHP_URL_FRAGMENT) ) ? '#' . $fragment : '';
 
 		return $relative;
-	} # end method buildRelativeURL()
-
+	}
 
 	/**
 	 * This method is a shortcut to Mf2\resolveUrl()
@@ -1367,8 +1344,7 @@ END;
 		$path = Mf2\resolveUrl($url_base, $path);
 
 		return $path;
-	} # end method resolveUrl()
-
+	}
 
 	/**
 	 * This method resolves a URL's 3xx redirects and returns the final URL
@@ -1382,15 +1358,14 @@ END;
 		$response = $http->get($url);
 		$http_headers = $http->getResponseHeaders();
 
-		# if: redirected; update final URL
+		# redirected; update final URL
 		if ( !empty($http_headers['location']) )
 		{
 			$url = $http_headers['location'];
 		}
 
 		return $url;
-	} # end method resolveRedirects()
-
+	}
 
 	/**
 	 * This method handles discovery of webmention endpoint
@@ -1404,7 +1379,7 @@ END;
 
 		## 1. Look for Link: header with webmention rel-value
 
-		# if: link headers
+		# link headers
 		if ( !empty($headers['link']) )
 		{
 
@@ -1418,72 +1393,70 @@ END;
 				}
 				else
 				{
-					$headers['link'] = array($headers['link']);
+					$headers['link'] = [$headers['link']];
 				}
 
 			}
 
-			# loop: each header link
 			foreach ( $headers['link'] as $header )
 			{
 				# match rel=webmention link header
 				preg_match('#\<(.*?)\>\s*\;\s*rel\=\"?(?:.*?)webmention(?:.*?)\"?#', $header, $matches);
 
-				# if: rel=webmention link header found
+				# rel=webmention link header found
 				if ( count($matches) == 2 )
 				{
 					$endpoint = \Mf2\resolveUrl($url, array_pop($matches));
 
-					return array(
+					return [
 						'type'		=> 'webmention',
 						'endpoint'	=> $this->resolveRedirects($endpoint)
-					);
-				} # end if
+					];
+				}
 
-			} # end loop
+			}
 
-		} # end if: link headers
+		}
 
 		## 2. Look for <link> elements with webmention rel-value
 
 		$links = $this->fetchLinkElements($url);
 
-		# if: webmention <link> element found
+		# webmention <link> element found
 		if ( !empty($links['webmention']) )
 		{
 			$endpoint = \Mf2\resolveUrl($url, reset($links['webmention']));
 
-			return array(
+			return [
 				'type'		=> 'webmention',
 				'endpoint'	=> $this->resolveRedirects($endpoint)
-			);
-		} # end if
+			];
+		}
 
 		## 3. Look for X-Pingback: header
 
-		# if: X-Pingback: header found
+		# X-Pingback: header found
 		if ( !empty($headers['pingback']) )
 		{
-			return array(
+			return [
 				'type'		=> 'pingback',
 				'endpoint'	=> reset($headers['pingback'])
-			);
-		} # end if: link headers
+			];
+		}
 
 		## 4. Look for <link> elements with pingback rel-value
 
-		# if: pingback <link> element found
+		# pingback <link> element found
 		if ( !empty($links['pingback']) )
 		{
-			return array(
+			return [
 				'type'		=> 'pingback',
 				'endpoint'	=> reset($links['pingback'])
-			);
-		} # end if
+			];
+		}
 
 		return null;
-	} # end method discovery()
-
+	}
 
 	/**
 	 * This method determines if a URL is is a loopback
@@ -1501,30 +1474,29 @@ END;
 		}
 
 		$records = dns_get_record($domain);
-		$ips = array();
+		$ips = [];
 
-		# loop: each DNS record
+		# each DNS record
 		foreach ( $records as $record )
 		{
 
-			# if: host matches and the record is A or AAAA
-			if ( $record['host'] == $domain && in_array($record['type'], array('A', 'AAAA')) )
+			# host matches and the record is A or AAAA
+			if ( $record['host'] == $domain && in_array($record['type'], ['A', 'AAAA']) )
 			{
 				$ip = ( $record['type'] == 'A' ) ? $record['ip'] : $record['ipv6'];
 
-				# if: the IP address is in the reserved range, this is a loopback
+				# the IP address is in the reserved range, this is a loopback
 				if ( filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) === false )
 				{
 					return true;
-				} # end if
+				}
 
-			} # end if
+			}
 
-		} # end loop
+		}
 
 		return false;
-	} # end method isLoopback()
-
+	}
 
 	/**
 	 * This method fetches the body of a URL
@@ -1543,8 +1515,7 @@ END;
 		}
 
 		return $response;
-	} # end method fetchBody()
-
+	}
 
 	/**
 	 * This method performs a HEAD request and returns an array of headers
@@ -1555,10 +1526,10 @@ END;
 	{
 		$http = new ProcessWireShim\WireHttp();
 
-		$return_headers = array(
-			'link'		=> array(),
-			'pingback'	=> array()
-		);
+		$return_headers = [
+			'link'		=> [],
+			'pingback'	=> []
+		];
 
 		$response = $http->status($url);
 
@@ -1570,8 +1541,7 @@ END;
 		$http_headers = $http->getResponseHeaders();
 
 		return array_intersect_key($http_headers, $return_headers);
-	} # end method fetchHead()
-
+	}
 
 	/**
 	 * This method parses the <link> elements from HTML
@@ -1581,7 +1551,7 @@ END;
 	 */
 	protected function fetchLinkElements($url)
 	{
-		$links = array();
+		$links = [];
 
 		$body = $this->fetchBody($url);
 
@@ -1595,15 +1565,15 @@ END;
 		$dom->loadHTML($body);
 		$dom->preserveWhiteSpace = false;
 
-		$element_types = array('a', 'link');
+		$element_types = ['a', 'link'];
 
-		# loop: each type of element
+		# each type of element
 		foreach ( $element_types as $element )
 		{
 			# get the DOMNodeList of links
 			$link_elements = $dom->getElementsByTagName($element);
 
-			# loop: each DOMElement
+			# each DOMElement
 			foreach ( $link_elements as $link )
 			{
 				$rel = $link->getAttribute('rel');
@@ -1616,7 +1586,7 @@ END;
 
 					if ( empty($links[$rel]) )
 					{
-						$links[$rel] = array($href);
+						$links[$rel] = [$href];
 					}
 					else
 					{
@@ -1625,13 +1595,12 @@ END;
 
 				}
 
-			} # end loop
+			}
 
-		} # end loop
+		}
 
 		return $links;
-	} # end method fetchLinkElements()
-
+	}
 
 	/**
 	 * This method handles sending an HTTP response
@@ -1646,7 +1615,7 @@ END;
 		switch ( $content_type )
 		{
 			case 'application/json':
-				$body = json_encode(array('message' => $message));
+				$body = json_encode(['message' => $message]);
 			break;
 
 			case 'text/plain':
@@ -1688,8 +1657,7 @@ END;
 
 		echo $body;
 		exit;
-	} # end method httpResponse()
-
+	}
 
 	/**
 	 * This method retrieves microformat content from HTML
@@ -1704,19 +1672,17 @@ END;
 		# parse the content for microformats
 		$parsed = Mf2\parse($html, $url);
 
-		# if: parsed content is microformat collection
+		# parsed content is microformat collection
 		if ( Mf2helper\isMicroformatCollection($parsed) )
 		{
 			return $parsed;
 		}
-		# else:
+		#
 		else
 		{
 			return false;
-		} # end if
-
-	} # end method fetchMicroformats()
-
+		}
+	}
 
 	/**
 	 * This method handles parsing the first h-entry in a microformat collection
@@ -1731,15 +1697,15 @@ END;
 		# find h-entry in collection
 		$entries = Mf2helper\findMicroformatsByType($collection, 'h-entry');
 
-		# if: one or more h-entry found
+		# one or more h-entry found
 		if ( $entries )
 		{
 			$entry = reset($entries);
 
-			$in_reply_to = array();
+			$in_reply_to = [];
 			$target_url = $webmention->target_url;
 
-			# if: in-reply-to found
+			# in-reply-to found
 			if ( !empty($entry['properties']['in-reply-to']) && is_array($entry['properties']['in-reply-to']) )
 			{
 
@@ -1755,9 +1721,9 @@ END;
 						$in_reply_to[] = $item;
 					}
 
-				} # end loop
+				}
 
-			} # end if
+			}
 
 			# set type to 'reply' if in-reply-to matches the target; otherwise 'mention'
 			$type = ( in_array($target_url, $in_reply_to) ) ? 'reply' : 'mention';
@@ -1767,19 +1733,19 @@ END;
 			$repost_of = Mf2helper\getPlaintextArray($entry, 'repost-of');
 			$rsvp = Mf2helper\getPlaintext($entry, 'rsvp');
 
-			# if: if like-of matches target, set the flag
+			# if like-of matches target, set the flag
 			if ( $like_of && in_array($target_url, $like_of) )
 			{
 				$webmention->set('is_like', 1);
 			}
 
-			# if: if repost-of matches target, set the flag
+			# if repost-of matches target, set the flag
 			if ( $repost_of && in_array($target_url, $repost_of) )
 			{
 				$webmention->set('is_repost', 1);
 			}
 
-			# if: rsvp
+			# rsvp
 			if ( $rsvp )
 			{
 				$webmention->set('is_rsvp', 1);
@@ -1806,16 +1772,14 @@ END;
 
 			return $entry;
 		}
-		# else: no h-entry found
+		# no h-entry found
 		else
 		{
 			$webmention->set('url', $webmention->source_url);
 			$webmention->published = $webmention->updated = null;
 			return false;
-		} # end if
-
-	} # end method parseFirstEntry()
-
+		}
+	}
 
 	/**
 	 * This method handles parsing the first h-card in a microformat collection
@@ -1830,7 +1794,7 @@ END;
 		# find h-card in collection
 		$cards = Mf2helper\findMicroformatsByType($collection, 'h-card');
 
-		# if: one or more h-card found
+		# one or more h-card found
 		if ( $cards )
 		{
 			$card = reset($cards);
@@ -1842,14 +1806,12 @@ END;
 
 			return true;
 		}
-		# else: no h-card found
+		# no h-card found
 		else
 		{
 			return false;
-		} # end if
-
-	} # end method parseFirstCard()
-
+		}
+	}
 
 	/**
 	 * This method performs the authorship algorithm
@@ -1864,47 +1826,47 @@ END;
 		$author = '';
 		$author_page = '';
 
-		# if: author property
+		# author property
 		if ( Mf2helper\hasProp($entry, 'author') )
 		{
 			$author = Mf2helper\getAuthor($entry);
 		}
-		# else: check h-feed for author property
+		# check h-feed for author property
 		else
 		{
 			# TODO: authorship step 4. Not sure it's pertinent to this plugin, though.
-		} # end if
+		}
 
-		# if: author property
+		# author property
 		if ( $author )
 		{
 
-			# if: author h-card found
+			# author h-card found
 			if ( Mf2helper\isMicroformat($author) )
 			{
 				return $this->setAuthor($author, $webmention);
 			}
-			# else if: author value is a URL
+			# author value is a URL
 			else if ( filter_var($author, FILTER_VALIDATE_URL) )
 			{
 				$author_page = $author;
 			}
-			# else: author value is the author's name
+			# author value is the author's name
 			else
 			{
 				$webmention->set('author_name', $author);
 				return true;
-			} # end if
+			}
 
-		} # end if
+		}
 
-		# if: no author_page set yet; rel-author exists
+		# no author_page set yet; rel-author exists
 		if ( !$author_page && !empty($mf2['rels']['author']) )
 		{
 			$author_page = reset($mf2['rels']['author']);
-		} # end if
+		}
 
-		# if: parse author_page
+		# parse author_page
 		if ( $author_page )
 		{
 			$http = new WireHttp();
@@ -1912,70 +1874,69 @@ END;
 			$response = $http->get($author_page);
 			$mf2_author_page = $this->fetchMicroformats($response, $author_page);
 
-			# if: no microformats
+			# no microformats
 			if ( $mf2_author_page === false )
 			{
 				return false;
-			} # end if
+			}
 
 			$cards = Mf2helper\findMicroformatsByType($mf2_author_page, 'h-card');
 
-			# loop: each h-card (reference authorship step 7.2)
+			# each h-card (reference authorship step 7.2)
 			foreach ( $cards as $card )
 			{
 				$u_url = Mf2helper\getPlaintext($card, 'url');
 				$u_uid = Mf2helper\getPlaintext($card, 'uid');
 
-				# if: author found
+				# author found
 				if ( $u_url == $u_uid && $u_uid == $author_page )
 				{
 					return $this->setAuthor($card, $webmention, $u_url);
-				} # end if: author found
+				}
 
-			} # end loop
+			}
 
-			# if: rel-mes on original page (reference authorship step 7.3)
+			# rel-mes on original page (reference authorship step 7.3)
 			if ( !empty($mf2_author_page['rels']['me']) )
 			{
 
-				# loop: each h-card
+				# each h-card
 				foreach ( $cards as $card )
 				{
 					$u_url = Mf2helper\getPlaintext($card, 'url');
 
-					# if: author found
+					# author found
 					if ( in_array($u_url, $mf2_author_page['rels']['me']) )
 					{
 						return $this->setAuthor($card, $webmention, $u_url);
-					} # end if
+					}
 
-				} # end loop
+				}
 
-			} # end if
+			}
 
 			## reference authorship step 7.4
 
 			# h-cards on the original h-entry's page
 			$cards = Mf2helper\findMicroformatsByType($mf2, 'h-card');
 
-			# loop: each h-card
+			# each h-card
 			foreach ( $cards as $card )
 			{
 				$u_url = Mf2helper\getPlaintext($card, 'url');
 
-				# if: author found
+				# author found
 				if ( $u_url == $author_page )
 				{
 					return $this->setAuthor($card, $webmention, $u_url);
-				} # end if
+				}
 
-			} # end loop
+			}
 
-		} # end if
+		}
 
 		return false;
-	} # end method getAuthorship()
-
+	}
 
 	/**
 	 * This method sets the Webmention's author information from the supplied h-card
@@ -2002,8 +1963,7 @@ END;
 		}
 
 		return true;
-	} # end method setAuthor()
-
+	}
 
 	/**
 	 * This method is hookable for caching images.
@@ -2015,8 +1975,7 @@ END;
 	public function ___cacheImage($url)
 	{
 		return $url;
-	} # end method ___cacheImage()
-
+	}
 
 	/**
 	 * DEPRECATED. See method getAuthorship()
@@ -2029,27 +1988,25 @@ END;
 	private function parseRelAuthor($context, WebmentionItem &$webmention)
 	{
 
-		# if: rel-author in parsed content
+		# rel-author in parsed content
 		if ( !empty($context['rels']['author']) )
 		{
 			$url = reset($context['rels']['author']);
 
-			# if: microformat(s) found at rel-author URL
+			# microformat(s) found at rel-author URL
 			if ( $parsed_content = $this->fetchMicroformats($url) )
 			{
 				# parse the first h-card, if any
 				return $this->parseFirstCard($parsed_content, $webmention);
-			} # end if
+			}
 
 		}
-		# else: no rel-author
+		# no rel-author
 		else
 		{
 			return false;
-		} # end if
-
-	} # end method parseRelAuthor()
-
+		}
+	}
 
 	/**
 	 * This method handles parsing the default author information using the source URL
@@ -2065,8 +2022,7 @@ END;
 		$webmention->set('author_url', sprintf('%s://%s', $url_parts['scheme'], $url_parts['host']));
 
 		return true;
-	} # end method parseDefaultAuthor()
-
+	}
 
 	/**
 	 * This method handles parsing a date string into Y-m-d H:i:s format, UTC timezone
@@ -2089,21 +2045,21 @@ END;
 		try
 		{
 
-			# if: datetime string has timezone
+			# datetime string has timezone
 			if ( $has_timezone )
 			{
 				$date = new DateTime($string_date);
 				$timezone = $date->getTimezone()->getName();
 
-				# if: date is not in ProcessWire timezone; convert
+				# date is not in ProcessWire timezone; convert
 				if ( $timezone != $this->gmt_offset )
 				{
 					$timezone = new DateTimeZone($this->config->timezone);
 					$date->setTimezone($timezone);
-				} # end if
+				}
 
 			}
-			# else:
+			#
 			else
 			{
 				$date = new DateTime($string_date);
@@ -2116,13 +2072,12 @@ END;
 			$date = new DateTime($fallback);
 		}
 
-		return array(
+		return [
 			'has_timezone'	=> $has_timezone,
 			'timezone' => $timezone,
 			'date'			=> $date->format('Y-m-d H:i:s')
-		);
-	} # end method parseDateTime()
-
+		];
+	}
 
 	/**
 	 * This method records HTTP referers, to be processed as potential vouches
@@ -2133,7 +2088,7 @@ END;
 	public function recordReferer($referer = '')
 	{
 
-		# if: no referer to record
+		# no referer to record
 		if ( empty($_SERVER['HTTP_REFERER']) )
 		{
 			return;
@@ -2141,15 +2096,15 @@ END;
 
 		$referer = $_SERVER['HTTP_REFERER'];
 
-		# if: do not track internal referers
+		# do not track internal referers
 		if ( parse_url($referer, PHP_URL_HOST) == $this->config->httpHost )
 		{
 			return;
 		}
 
-		$trimmed_referer = trim(str_replace(array('http://', 'https://'), '', $referer), '/');
+		$trimmed_referer = trim(str_replace(['http://', 'https://'], '', $referer), '/');
 
-		# if: do not track referers from a homepage; expectation is that content changes periodically.
+		# do not track referers from a homepage; expectation is that content changes periodically.
 		if ( parse_url($referer, PHP_URL_HOST) == $trimmed_referer )
 		{
 			return;
@@ -2158,7 +2113,7 @@ END;
 		$referer = $this->sanitizer->url($referer);
 
 		$statement = $this->database->prepare("SELECT * FROM {$this->className}_vouches WHERE url = ?");
-		$result = $statement->execute(array($referer));
+		$result = $statement->execute([$referer]);
 
 		if ( $result === false || $statement->rowCount() > 0 )
 		{
@@ -2166,11 +2121,10 @@ END;
 		}
 
 		$statement = $this->database->prepare("INSERT INTO {$this->className}_referer_queue SET url = ?, created = NOW(), modified = NOW() ON DUPLICATE KEY UPDATE modified = NOW()");
-		$result = $statement->execute(array($referer));
+		$result = $statement->execute([$referer]);
 
 		return;
-	} # end method recordReferer()
-
+	}
 
 	/**
 	 * This method handles processing referers to determine if they can be used as a vouch
@@ -2196,7 +2150,7 @@ END;
 		$response = $http->get( $this->sanitizer->url($row['url']) );
 		$http_code = $http->getHttpCode();
 
-		# if: referer URL is HTTP 200 OK
+		# referer URL is HTTP 200 OK
 		if ( $http_code == 200 )
 		{
 			libxml_use_internal_errors(true);
@@ -2217,7 +2171,7 @@ END;
 				't.co',
 			];
 
-			# loop: each <a> DOMElement
+			# each <a> DOMElement
 			foreach ( $a_elements as $a )
 			{
 				$rel = $a->getAttribute('rel');
@@ -2225,19 +2179,19 @@ END;
 
 				$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($row['url'], PHP_URL_HOST));
 
-				# if: domain is not ignored, link does not have rel=nofollow, and links back
+				# domain is not ignored, link does not have rel=nofollow, and links back
 				if ( !in_array($domain, $ignore_domains) && ($rel != 'nofollow') && strpos($href, $this->config->httpHost) !== false )
 				{
 					$url = $this->sanitizer->url($row['url']);
-					$statement_vouches->execute(array($domain, $url));
+					$statement_vouches->execute([$domain, $url]);
 
 					break;
-				} # end if
+				}
 
-			} # end loop
+			}
 
 		}
-		# else: non-200 response
+		# non-200 response
 		else
 		{
 
@@ -2246,13 +2200,12 @@ END;
 				$this->log->save('webmentions-referers', sprintf('Referer URL %s returned HTTP %s', $row['url'], $http_code));
 			}
 
-		} # end if
+		}
 
-		$statement_processed->execute(array($row['id']));
+		$statement_processed->execute([$row['id']]);
 
 		return;
-	} # end method processReferer()
-
+	}
 
 	/**
 	 * This method verifies a received vouch URL
@@ -2272,7 +2225,7 @@ END;
 		$source_domain = parse_url($source_url, PHP_URL_HOST);
 		$source_base_url = parse_url($source_url, PHP_URL_SCHEME) . '://' . $source_domain;
 
-		# if: vouch domain is not accepted
+		# vouch domain is not accepted
 		if ( !in_array($vouch_domain, $approved_vouches) )
 		{
 			$this->log->save('webmentions-received', sprintf('Vouch domain %s not approved.', $vouch_domain));
@@ -2291,24 +2244,23 @@ END;
 		# get <a> DOMElements
 		$a_elements = $dom->getElementsByTagName('a');
 
-		# loop: each <a> DOMElement
+		# each <a> DOMElement
 		foreach ( $a_elements as $a )
 		{
 			$rel = $a->getAttribute('rel');
 			$href = $a->getAttribute('href');
 
-			# if: vouch URL links to source domain and does *not* have rel=nofollow
+			# vouch URL links to source domain and does *not* have rel=nofollow
 			if ( strpos($href, $source_domain) !== false && ($rel != 'nofollow') )
 			{
 				return true;
-			} # end if
+			}
 
 		}
 
 		$this->log->save('webmentions-received', sprintf('Vouch %s does not link to %s with rel=nofollow.', $vouch_url, $source_domain));
 		return false;
-	} # end method verifyReceivedVouch()
-
+	}
 
 	/**
 	 * This method attempts to find a vouch URL for sending webmentions
@@ -2321,24 +2273,24 @@ END;
 	{
 		$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($url, PHP_URL_HOST));
 
-		$ignore_domains = array(
+		$ignore_domains = [
 			$this->config->httpHost,
 			'brid.gy',
 			'google.com',
 			'yahoo.com',
 			'bing.com',
 			't.co',
-		);
+		];
 
-		# if: ignore vouch for this domain
+		# ignore vouch for this domain
 		if ( in_array($domain, $ignore_domains) )
 		{
 			return false;
-		} # end if
+		}
 
 		$http = new WireHttp();
 
-		$checked_domains = array();
+		$checked_domains = [];
 
 		$domain = parse_url($url, PHP_URL_HOST);
 		$base_url = parse_url($url, PHP_URL_SCHEME) . '://' . $domain;
@@ -2346,17 +2298,17 @@ END;
 		# First check if this domain is in the vouches table (they already link to us); if so, use that for vouch
 		$result = $this->database->query("SELECT * FROM {$this->className}_vouches WHERE domain = '{$domain}' AND `deleted` IS NULL");
 
-		# if: db/query error
+		# db/query error
 		if ( $result === false )
 		{
 			return false;
 		}
-		# else if: vouch found
+		# vouch found
 		else if ( $result->rowCount() > 0 )
 		{
 			$row = $result->fetch(PDO::FETCH_ASSOC);
 			return $row['url'];
-		} # end if
+		}
 
 		$response = $http->get($url);
 
@@ -2368,19 +2320,19 @@ END;
 		# get <a> DOMElements
 		$a_elements = $dom->getElementsByTagName('a');
 
-		# loop: each <a> DOMElement
+		# each <a> DOMElement
 		foreach ( $a_elements as $a )
 		{
 			$rel = $a->getAttribute('rel');
 			$href = $a->getAttribute('href');
 
-			# if: link does not have rel=nofollow
+			# link does not have rel=nofollow
 			if ( ($rel != 'nofollow') )
 			{
 				$full_url = Mf2\resolveUrl($base_url, $href);
 				$potential_vouch_domain = parse_url($full_url, PHP_URL_HOST);
 
-				# if: link is external and domain has not already been checked
+				# link is external and domain has not already been checked
 				if ( $potential_vouch_domain != $domain && !in_array($potential_vouch_domain, $checked_domains) )
 				{
 					$checked_domains[] = $potential_vouch_domain;
@@ -2395,15 +2347,14 @@ END;
 
 					$row = $result->fetch(PDO::FETCH_ASSOC);
 					return $row['url'];
-				} # end if: link is external...
+				}
 
-			} # end if: link does not have...
+			}
 
-		} # end loop: each <a>
+		}
 
 		return false;
-	} # end method findVouchFor()
-
+	}
 
 	/**
 	 * This method processes the vouch_whitelist URL and adds any new vouch domains found there
@@ -2428,40 +2379,39 @@ END;
 		$http = new WireHttp();
 		$response = $http->get($this->vouch_whitelist);
 
-		# if: microformats collection
+		# microformats collection
 		if ( $collection = $this->fetchMicroformats($response, $this->vouch_whitelist) )
 		{
 			$cards = Mf2helper\findMicroformatsByType($collection, 'h-card');
 
-			# loop: each h-card
+			# each h-card
 			foreach ( $cards as $card )
 			{
 				$url = Mf2helper\getPlaintext($card, 'url');
 				$domain = preg_replace('#^www\.(.+\.)#i', '$1', parse_url($url, PHP_URL_HOST));
 
-				# if: domain is not in approved vouches yet; add it
+				# domain is not in approved vouches yet; add it
 				if ( !in_array($domain, $approved_vouches) )
 				{
 					$has_new_domains = true;
 					$approved_vouches[] = $domain;
-				} # end if
+				}
 
-			} # end loop
+			}
 
-		} # end if
+		}
 
-		# if: need to update the config
+		# need to update the config
 		if ( $has_new_domains )
 		{
 			# alpha sort the domains, implode to a string, and save
 			sort($approved_vouches);
 			$data['approved_vouches'] = implode("\n", $approved_vouches);
 			$this->modules->saveModuleConfigData($this, $data);
-		} # end if
+		}
 
 		return true;
-	} # end method processVouchWhitelist()
-
+	}
 
 	/**
 	 * This method searches the FieldtypeWebmentions
@@ -2472,32 +2422,31 @@ END;
 	public function find($selector_string)
 	{
 
-		# if: webmention field already found
+		# webmention field already found
 		if ( $this->webmention_field )
 		{
 			$field = $this->webmention_field;
 		}
-		# else: look for first webmention field
+		# look for first webmention field
 		else
 		{
 
-			# loop: each field
+			# each field
 			foreach ( $this->fields as $field )
 			{
 
-				# if: add FieldtypeWebmentions to $fields array
+				# add FieldtypeWebmentions to $fields array
 				if ( $field->type instanceof FieldtypeWebmentions )
 				{
 					break;
-				} # end if
+				}
 
-			} # end loop
+			}
 
-		} # end if
+		}
 
 		return $field->type->find($field, $selector_string);
-	} # end method find()
-
+	}
 
 	/**
 	 * Update database schema
@@ -2509,7 +2458,7 @@ END;
 	private function updateDatabaseSchema()
 	{
 
-		# loop:
+		#
 		while ( $this->schema_version < self::SCHEMA_VERSION )
 		{
 			++$this->schema_version;
@@ -2540,9 +2489,8 @@ END;
 				throw new WireException("Couldn't update database schema to version $this->schema_version");
 			}
 
-		} # end loop
+		}
 
-	} # end method updateDatabaseSchema()
-
+	}
 }
 
