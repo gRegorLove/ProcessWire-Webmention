@@ -58,13 +58,14 @@ class Webmention extends WireData implements Module, ConfigurableModule
 			'href'		=> 'https://webmention.net/',
 			'singular'	=> true,
 			'autoload'	=> true,
+			'requires' => [
+				'PHP>=5.6',
+				'ProcessWire>=3.0',
+			],
 			'installs'	=> [
 				'FieldtypeWebmentions',
 				'InputfieldWebmentions',
 				'ProcessWebmentionsManager',
-			],
-			'requires' => [
-				'PHP>=5.6',
 			],
 		];
 	}

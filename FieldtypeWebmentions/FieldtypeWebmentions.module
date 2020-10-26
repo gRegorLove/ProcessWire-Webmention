@@ -38,6 +38,7 @@ class FieldtypeWebmentions extends FieldtypeMulti
 			'summary'	=> __('Field that stores webmentions for a single Page', __FILE__),
 			'requires' => [
 				'PHP>=5.6',
+				'ProcessWire>=3.0',
 			],
 		];
 	}

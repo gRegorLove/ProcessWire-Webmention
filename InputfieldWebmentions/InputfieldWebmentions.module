@@ -26,6 +26,7 @@ class InputfieldWebmentions extends Inputfield implements InputfieldItemList
 			'requires' => [
 				'FieldtypeWebmentions',
 				'PHP>=5.6',
+				'ProcessWire>=3.0',
 			],
 		];
 	}
